@@ -1,0 +1,564 @@
+{
+  "name": "Portfolio Risk Manager - Github",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        96
+      ],
+      "id": "c35045a1-e8ee-46b9-8d46-2bb1d2820700",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblc31suoY5ijmSNE",
+          "mode": "list",
+          "cachedResultName": "Executed_Trades",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblc31suoY5ijmSNE"
+        },
+        "filterByFormula": "executed_at >= DATEADD(NOW(), -24, 'hours')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "881a46d5-b403-4fd9-a426-c59ad863b4f4",
+      "name": "Get Recent Executed Trades",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblTi1hnwjHoJIEG9"
+        },
+        "filterByFormula": "timestamp >= DATEADD(NOW(), -1, 'hours')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        192
+      ],
+      "id": "81e5c219-6698-457d-b312-2fdd5bf72538",
+      "name": "Get Recent Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        96
+      ],
+      "id": "8f6e9a87-e5a6-4c6c-8a13-66af03cf2c32",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Portfolio Risk Management System - Fixed version\nconsole.log(\"=== RISK CALCULATION START ===\");\n\nconst allInputData = $input.all();\n\n// Initialize tracking arrays\nlet executedTrades = [];\nlet recentOpportunities = [];\n\n// Process input data\nallInputData.forEach((inputItem, itemIndex) => {\n  if (!inputItem || !inputItem.json) return;\n  \n  const jsonData = inputItem.json;\n  \n  if (Array.isArray(jsonData)) {\n    jsonData.forEach((record) => {\n      // Executed trades (from Executed_Trades table)\n      if (record.profit_amount !== undefined && record.executed_at !== undefined) {\n        try {\n          const tradeTime = new Date(record.executed_at);\n          const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);\n          \n          if (tradeTime > cutoff) {\n            executedTrades.push(record);\n          }\n        } catch (error) {\n          console.log(`Error parsing trade date: ${record.executed_at}`);\n        }\n      }\n      // Recent opportunities\n      else if (record.pair !== undefined && record.timestamp) {\n        try {\n          const oppTime = new Date(record.timestamp);\n          const cutoff = new Date(Date.now() - 1 * 60 * 60 * 1000); // 1 hour\n          \n          if (oppTime > cutoff) {\n            recentOpportunities.push(record);\n          }\n        } catch (error) {\n          console.log(`Error parsing opportunity date: ${record.timestamp}`);\n        }\n      }\n    });\n  }\n});\n\nconsole.log(`\\n=== DATA EXTRACTION SUMMARY ===`);\nconsole.log(`Executed trades found: ${executedTrades.length}`);\nconsole.log(`Recent opportunities found: ${recentOpportunities.length}`);\n\n// Portfolio configuration\nconst PORTFOLIO_SIZE = 50000;\nconst MAX_DAILY_LOSS = PORTFOLIO_SIZE * 0.02; // 2%\nconst MAX_POSITION_SIZE = PORTFOLIO_SIZE * 0.10; // 10%\nconst MAX_TOTAL_EXPOSURE = PORTFOLIO_SIZE * 0.30; // 30%\n\n// Calculate daily P&L from actual trades\nconst dailyPnL = executedTrades.reduce((sum, trade) => {\n  const profit = parseFloat(trade.profit_amount) || 0;\n  return sum + profit;\n}, 0);\n\nconst currentDailyLoss = Math.abs(Math.min(0, dailyPnL));\n\n// Calculate REAL position exposure from executed trades\nconst positionExposure = {};\nconst tradeAmount = 1000; // Default trade size\n\n// Use actual executed trades to determine exposure\nexecutedTrades.forEach((trade) => {\n  if (trade.status === 'completed') {\n    const pair = trade.pair || 'Unknown';\n    // Only count recent trades for exposure (last 4 hours)\n    const tradeTime = new Date(trade.executed_at);\n    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);\n    \n    if (tradeTime > fourHoursAgo) {\n      positionExposure[pair] = (positionExposure[pair] || 0) + tradeAmount;\n    }\n  }\n});\n\nconsole.log(\"Position exposure from actual trades:\", positionExposure);\n\n// Calculate metrics\nconst totalExposure = Object.values(positionExposure).reduce((sum, exposure) => sum + exposure, 0);\nconst activePairs = Object.keys(positionExposure);\n\n// Risk status determination based on REAL data\nlet riskStatus = 'Safe';\nlet shouldHaltTrading = false;\n\nif (currentDailyLoss >= MAX_DAILY_LOSS) {\n  riskStatus = 'Halted';\n  shouldHaltTrading = true;\n} else if (currentDailyLoss >= MAX_DAILY_LOSS * 0.8 || totalExposure >= MAX_TOTAL_EXPOSURE) {\n  riskStatus = 'Critical';\n} else if (currentDailyLoss >= MAX_DAILY_LOSS * 0.5 || totalExposure >= MAX_TOTAL_EXPOSURE * 0.8) {\n  riskStatus = 'Warning';\n}\n\nconsole.log(`Risk status: ${riskStatus}`);\n\n// Create position limits ONLY for active positions\nconst positionLimits = [];\n\nObject.entries(positionExposure).forEach(([pair, exposure]) => {\n  const utilizationPercent = (exposure / MAX_POSITION_SIZE) * 100;\n  let riskTier = 'Conservative';\n  \n  if (utilizationPercent >= 80) riskTier = 'Aggressive';\n  else if (utilizationPercent >= 50) riskTier = 'Moderate';\n  \n  const positionLimit = {\n    pair: pair,\n    max_position_usd: MAX_POSITION_SIZE,\n    current_exposure: Math.round(exposure * 100) / 100,\n    utilization_percent: Math.round(utilizationPercent * 100) / 100,\n    risk_tier: riskTier,\n    last_updated: new Date().toISOString()\n  };\n  \n  positionLimits.push(positionLimit);\n});\n\n// Main risk data - always return this\nconst riskData = {\n  timestamp: new Date().toISOString(),\n  total_portfolio_value: PORTFOLIO_SIZE,\n  daily_pnl: Math.round(dailyPnL * 100) / 100,\n  max_position_size: MAX_POSITION_SIZE,\n  daily_loss_limit: MAX_DAILY_LOSS,\n  current_daily_loss: Math.round(currentDailyLoss * 100) / 100,\n  risk_status: riskStatus,\n  active_positions_count: activePairs.length,\n  max_drawdown_percent: 0,\n  correlation_risk_score: activePairs.length > 1 ? 25 : 0,\n  total_exposure: Math.round(totalExposure * 100) / 100,\n  halt_trading: shouldHaltTrading,\n  reduce_exposure: totalExposure >= MAX_TOTAL_EXPOSURE * 0.8,\n  max_new_position_size: shouldHaltTrading ? 0 : MAX_POSITION_SIZE,\n  daily_loss_utilization: Math.round((currentDailyLoss / MAX_DAILY_LOSS) * 100),\n  exposure_utilization: Math.round((totalExposure / MAX_TOTAL_EXPOSURE) * 100),\n  risk_adjusted_trade_size: shouldHaltTrading ? 0 : \n    riskStatus === 'Critical' ? 500 : \n    riskStatus === 'Warning' ? 750 : 1000\n};\n\nconsole.log(\"\\n=== FINAL RESULTS ===\");\nconsole.log(\"Risk data:\", JSON.stringify(riskData, null, 2));\nconsole.log(`Position limits: ${positionLimits.length}`);\n\n// Return risk data + position limits (if any)\nconst results = [{ json: riskData }];\nif (positionLimits.length > 0) {\n  results.push(...positionLimits.map(limit => ({ json: limit })));\n}\n\nconsole.log(`Total items to return: ${results.length}`);\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        96
+      ],
+      "id": "40c66705-2575-430c-8a1b-f2e61e8ff844",
+      "name": "Risk Calculation"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        896,
+        96
+      ],
+      "id": "5315ced0-d640-4ba2-9586-d52ef25228b4",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQdYab6nnmsBSzv",
+          "mode": "list",
+          "cachedResultName": "Risk_Management",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblQdYab6nnmsBSzv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "total_portfolio_value": "={{ $json.total_portfolio_value }}",
+            "daily_pnl": "={{ $json.daily_pnl }}",
+            "max_position_size": "={{ $json.max_position_size }}",
+            "daily_loss_limit": "={{ $json.daily_loss_limit }}",
+            "current_daily_loss": "={{ $json.current_daily_loss }}",
+            "risk_status": "={{ $json.risk_status }}",
+            "active_positions_count": "={{ $json.active_positions_count }}",
+            "max_drawdown_percent": "={{ $json.max_drawdown_percent }}",
+            "correlation_risk_score": "={{ $json.correlation_risk_score }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_portfolio_value",
+              "displayName": "total_portfolio_value",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "daily_pnl",
+              "displayName": "daily_pnl",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "max_position_size",
+              "displayName": "max_position_size",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "daily_loss_limit",
+              "displayName": "daily_loss_limit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "current_daily_loss",
+              "displayName": "current_daily_loss",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "risk_status",
+              "displayName": "risk_status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Safe",
+                  "value": "Safe"
+                },
+                {
+                  "name": "Warning",
+                  "value": "Warning"
+                },
+                {
+                  "name": "Critical",
+                  "value": "Critical"
+                },
+                {
+                  "name": "Halted",
+                  "value": "Halted"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "active_positions_count",
+              "displayName": "active_positions_count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "max_drawdown_percent",
+              "displayName": "max_drawdown_percent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "correlation_risk_score",
+              "displayName": "correlation_risk_score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        192
+      ],
+      "id": "f41a368a-fc92-44c6-ad83-cc78f0fdb2c6",
+      "name": "Store Risk Data",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGRjtMKMdwEBuVC",
+          "mode": "list",
+          "cachedResultName": "Position_Limits",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblGRjtMKMdwEBuVC"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "pair": "={{ $json.pair }}",
+            "max_position_usd": "={{ $json.max_position_usd }}",
+            "current_exposure": "={{ $json.current_exposure }}",
+            "utilization_percent": "={{ $json.utilization_percent }}",
+            "risk_tier": "={{ $json.risk_tier }}",
+            "last_updated": "={{ $json.last_updated }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "pair",
+              "displayName": "pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "max_position_usd",
+              "displayName": "max_position_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "current_exposure",
+              "displayName": "current_exposure",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utilization_percent",
+              "displayName": "utilization_percent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "risk_tier",
+              "displayName": "risk_tier",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Conservative",
+                  "value": "Conservative"
+                },
+                {
+                  "name": "Moderate",
+                  "value": "Moderate"
+                },
+                {
+                  "name": "Aggressive",
+                  "value": "Aggressive"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "643c1226-7d6d-4b21-a71a-1972495c6666",
+      "name": "Store Position Limits",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Executed Trades",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Recent Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Recent Executed Trades": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Risk Calculation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk Calculation": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Store Risk Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store Position Limits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Position Limits": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Risk Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2422bfd7-dd52-4ddc-ae73-316acdb9fae4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "EGtGUrYVcK97NM6m",
+  "tags": [
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}

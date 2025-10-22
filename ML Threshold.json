@@ -1,0 +1,253 @@
+{
+  "name": "ML Threshold - Github",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "b84b3dbc-30d9-4414-9f2b-f83faf146716",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblTi1hnwjHoJIEG9"
+        },
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        160,
+        0
+      ],
+      "id": "5ef53080-ff4c-46c3-b930-e81597fca5fb",
+      "name": "Get Training Data for ML",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced ML Training - Handles n8n multiple items correctly\nconst allInputData = $input.all();\nconsole.log(`\\n🤖 === ML TRAINING START ===`);\nconsole.log(`Input items from n8n: ${allInputData.length}`);\n\n// Extract all trades - n8n passes each record as a separate item\nlet trades = [];\nallInputData.forEach(item => {\n  if (item.json) {\n    trades.push(item.json);\n  }\n});\n\nconsole.log(`Total trades extracted: ${trades.length}`);\n\n// Log sample of first few trades for debugging\nif (trades.length > 0) {\n  console.log('First trade sample:', {\n    profit_potential: trades[0].profit_potential,\n    execution_status: trades[0].execution_status,\n    net_profit_estimate: trades[0].net_profit_estimate\n  });\n  console.log(`Last trade timestamp: ${trades[trades.length-1].timestamp}`);\n}\n\n// Validate we have enough data\nif (trades.length < 10) {\n  console.log('⚠️ Need at least 10 trades for ML training');\n  console.log(`Only have ${trades.length} trades`);\n  \n  // Basic fallback calculation\n  const validTrades = trades.filter(t => \n    t.profit_potential !== undefined\n  );\n  \n  if (validTrades.length >= 5) {\n    const profits = validTrades.map(t => Number(t.profit_potential) || 0);\n    const avgProfit = profits.reduce((sum, p) => sum + p, 0) / profits.length;\n    \n    return [{\n      json: {\n        optimal_threshold: Math.max(0.3, Math.min(avgProfit * 0.7, 2.0)),\n        confidence: validTrades.length / 50,\n        training_size: validTrades.length,\n        f1_score: 0,\n        win_rate: 0,\n        method: 'basic_optimization',\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n  \n  // Absolute fallback\n  return [{\n    json: {\n      optimal_threshold: 0.5,\n      confidence: 0.1,\n      training_size: trades.length,\n      f1_score: 0,\n      win_rate: 0,\n      method: 'insufficient_data',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Feature engineering\nconst enrichedTrades = trades.map(trade => ({\n  profitPercent: Number(trade.profit_potential) || 0,\n  gasCost: Number(trade.gas_cost_usd) || 0,\n  netProfit: Number(trade.net_profit_estimate) || 0,\n  wasExecuted: trade.execution_status === 'Executed',\n  wasProfitable: Number(trade.net_profit_estimate) > 0,\n  gasWindow: trade.execution_window || 'Unknown'\n}));\n\nconsole.log(`Enriched trades: ${enrichedTrades.length}`);\n\n// Count execution statistics\nconst executedCount = enrichedTrades.filter(t => t.wasExecuted).length;\nconst profitableCount = enrichedTrades.filter(t => t.wasProfitable).length;\nconsole.log(`Executed: ${executedCount}, Profitable: ${profitableCount}`);\n\n// Find optimal threshold\nfunction findOptimalThreshold(data) {\n  if (data.length < 5) {\n    return { threshold: 0.5, f1_score: 0, win_rate: 0 };\n  }\n  \n  const thresholds = [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0];\n  let bestScore = -1;\n  let bestThreshold = 0.5;\n  let bestMetrics = {};\n  \n  for (const threshold of thresholds) {\n    let tp = 0, fp = 0, tn = 0, fn = 0;\n    let totalProfit = 0, totalLoss = 0;\n    \n    for (const trade of data) {\n      const shouldExecute = trade.profitPercent >= threshold;\n      \n      if (shouldExecute && trade.wasProfitable) {\n        tp++;\n        totalProfit += trade.netProfit;\n      } else if (shouldExecute && !trade.wasProfitable) {\n        fp++;\n        totalLoss += Math.abs(trade.netProfit);\n      } else if (!shouldExecute && !trade.wasProfitable) {\n        tn++;\n      } else {\n        fn++;\n      }\n    }\n    \n    const precision = tp > 0 ? tp / (tp + fp) : 0;\n    const recall = tp > 0 ? tp / (tp + fn) : 0;\n    const f1 = (precision + recall) > 0 \n      ? 2 * (precision * recall) / (precision + recall) \n      : 0;\n    const winRate = (tp + fp) > 0 ? tp / (tp + fp) : 0;\n    \n    // Composite score favoring profit\n    const profitFactor = totalLoss > 0 ? totalProfit / totalLoss : 1;\n    const score = f1 * 0.4 + Math.min(profitFactor, 2) * 0.6;\n    \n    console.log(`Threshold ${threshold}: F1=${f1.toFixed(3)}, WinRate=${winRate.toFixed(3)}, Score=${score.toFixed(3)}`);\n    \n    if (score > bestScore) {\n      bestScore = score;\n      bestThreshold = threshold;\n      bestMetrics = {\n        threshold,\n        f1_score: f1,\n        win_rate: winRate\n      };\n    }\n  }\n  \n  return bestMetrics;\n}\n\nconst optimal = findOptimalThreshold(enrichedTrades);\n\n// Calculate confidence based on data quality and size\nconst sampleConfidence = Math.min(trades.length / 500, 1); // Max confidence at 500 samples\nconst performanceConfidence = optimal.f1_score;\nconst confidence = (sampleConfidence * 0.7 + performanceConfidence * 0.3);\n\nconsole.log(`\\n✅ ML TRAINING COMPLETE`);\nconsole.log(`   Optimal Threshold: ${optimal.threshold}%`);\nconsole.log(`   Confidence: ${(confidence * 100).toFixed(1)}%`);\nconsole.log(`   Training Size: ${trades.length}`);\nconsole.log(`   F1 Score: ${(optimal.f1_score * 100).toFixed(1)}%`);\nconsole.log(`   Win Rate: ${(optimal.win_rate * 100).toFixed(1)}%`);\n\nreturn [{\n  json: {\n    optimal_threshold: optimal.threshold || 0.5,\n    confidence: Math.max(0.1, Number(confidence.toFixed(4))),\n    f1_score: Number(optimal.f1_score.toFixed(4)) || 0,\n    win_rate: Number(optimal.win_rate.toFixed(4)) || 0,\n    training_size: trades.length,\n    method: 'ml_optimization',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        0
+      ],
+      "id": "1fe03a7c-bea9-4316-bae0-92070537aecc",
+      "name": "ML Threshold Optimizer",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7ruZHDARaZ6ESm",
+          "mode": "list",
+          "cachedResultName": "ML_Thresholds",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tbl7ruZHDARaZ6ESm"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "optimal_threshold": "={{ $json.optimal_threshold }}",
+            "confidence": "={{ $json.confidence }}",
+            "training_size": "={{ $json.training_size }}",
+            "method": "={{ $json.method }}",
+            "win_rate": "={{ $json.win_rate }}",
+            "f1_score": "={{ $json.f1_score }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "optimal_threshold",
+              "displayName": "optimal_threshold",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "training_size",
+              "displayName": "training_size",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "method",
+              "displayName": "method",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "f1_score",
+              "displayName": "f1_score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "win_rate",
+              "displayName": "win_rate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        608,
+        0
+      ],
+      "id": "0aa4b647-c797-4498-b719-4a757746fc3b",
+      "name": "Store ML Threshold",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Training Data for ML": {
+      "main": [
+        [
+          {
+            "node": "ML Threshold Optimizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ML Threshold Optimizer": {
+      "main": [
+        [
+          {
+            "node": "Store ML Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get Training Data for ML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "72396542-fbe6-41ea-8498-def44735e521",
+  "meta": {
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "85SwthkynBr3M8jt",
+  "tags": [
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}

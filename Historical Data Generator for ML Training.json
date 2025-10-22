@@ -1,0 +1,963 @@
+{
+  "name": "Historical Data Generator for ML Training - Github",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        96
+      ],
+      "id": "7b3c5bc0-3370-40cb-88bc-f6e3f19c6aad",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the opportunities array from the wrapper\nconst input = $json;\nconst opportunities = input.data;\n\n// Return each opportunity as a separate item for Airtable\nreturn opportunities.map(opp => ({\n  json: opp\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -48
+      ],
+      "id": "1c58f1d2-c389-44b8-8710-ab5112d4823e",
+      "name": "Format Opportunities for Airtable"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblTi1hnwjHoJIEG9"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "trading_allowed": false,
+            "paper_trade_executed": false,
+            "paper_trade_success": false,
+            "is_winning_trade": false
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pair",
+              "displayName": "pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profit_potential",
+              "displayName": "profit_potential",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "opportunity_type",
+              "displayName": "opportunity_type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Optimal",
+                  "value": "Optimal"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                },
+                {
+                  "name": "Avoid",
+                  "value": "Avoid"
+                },
+                {
+                  "name": "High Profit",
+                  "value": "High Profit"
+                },
+                {
+                  "name": "Medium Profit",
+                  "value": "Medium Profit"
+                },
+                {
+                  "name": "Low Profit",
+                  "value": "Low Profit"
+                },
+                {
+                  "name": "Gas Too High",
+                  "value": "Gas Too High"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "buy_exchange",
+              "displayName": "buy_exchange",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sell_exchange",
+              "displayName": "sell_exchange",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "buy_price",
+              "displayName": "buy_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sell_price",
+              "displayName": "sell_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gas_cost_usd",
+              "displayName": "gas_cost_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "net_profit_estimate",
+              "displayName": "net_profit_estimate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_status",
+              "displayName": "execution_status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Executed",
+                  "value": "Executed"
+                },
+                {
+                  "name": "Skipped",
+                  "value": "Skipped"
+                },
+                {
+                  "name": "Pending",
+                  "value": "Pending"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "skip_reason",
+              "displayName": "skip_reason",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_window",
+              "displayName": "execution_window",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Optimal",
+                  "value": "Optimal"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                },
+                {
+                  "name": "Avoid",
+                  "value": "Avoid"
+                },
+                {
+                  "name": "Unknown",
+                  "value": "Unknown"
+                },
+                {
+                  "name": " got 0.12%)",
+                  "value": " got 0.12%)"
+                },
+                {
+                  "name": " got 0.19%)",
+                  "value": " got 0.19%)"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "dynamic_threshold",
+              "displayName": "dynamic_threshold",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "optimization_age",
+              "displayName": "optimization_age",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "risk_status",
+              "displayName": "risk_status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Safe",
+                  "value": "Safe"
+                },
+                {
+                  "name": "Warning",
+                  "value": "Warning"
+                },
+                {
+                  "name": "Critical",
+                  "value": "Critical"
+                },
+                {
+                  "name": "Halted",
+                  "value": "Halted"
+                },
+                {
+                  "name": "Unknown",
+                  "value": "Unknown"
+                },
+                {
+                  "name": "750",
+                  "value": "750"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "risk_adjusted_trade_size",
+              "displayName": "risk_adjusted_trade_size",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "trading_allowed",
+              "displayName": "trading_allowed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "paper_trade_executed",
+              "displayName": "paper_trade_executed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "trade_amount_usd",
+              "displayName": "trade_amount_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "trade_amount_usd copy",
+              "displayName": "trade_amount_usd copy",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "slippage_cost",
+              "displayName": "slippage_cost",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "realized_profit",
+              "displayName": "realized_profit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "paper_trade_success",
+              "displayName": "paper_trade_success",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "return_on_investment",
+              "displayName": "return_on_investment",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "is_winning_trade",
+              "displayName": "is_winning_trade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "75859d21-361a-4327-bf78-cb2f0978b87a",
+      "name": "Save Opportunities to Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate 30 days of realistic historical trading data for ML training\nconsole.log('🎲 === GENERATING HISTORICAL DATA ===');\n\nconst DAYS_TO_GENERATE = 30;\nconst OPPORTUNITIES_PER_DAY = 48; // Every 30 minutes\n\n// IMPORTANT: Set this to match your actual data format\nconst OUTPUT_FORMAT = 'AIRTABLE'; // Change to 'SINGLE' if you want one combined output\n\n// Realistic market parameters\nconst MARKET_PARAMS = {\n  WETH: {\n    basePrice: 2450,\n    volatility: 0.02,  // 2% daily volatility\n    trendStrength: 0.001  // Slight upward trend\n  },\n  WBTC: {\n    basePrice: 68000,\n    volatility: 0.025,  // 2.5% daily volatility\n    trendStrength: 0.0015\n  }\n};\n\n// Gas patterns (realistic Ethereum gas)\nconst GAS_PATTERNS = {\n  hour: {\n    0: 0.8, 1: 0.7, 2: 0.7, 3: 0.7, 4: 0.8, 5: 0.9,      // Night (low)\n    6: 1.0, 7: 1.1, 8: 1.2, 9: 1.3, 10: 1.2, 11: 1.1,     // Morning rush\n    12: 1.0, 13: 1.1, 14: 1.2, 15: 1.3, 16: 1.4, 17: 1.3, // Afternoon/US open\n    18: 1.2, 19: 1.1, 20: 1.0, 21: 0.9, 22: 0.9, 23: 0.8  // Evening decline\n  },\n  dayOfWeek: {\n    0: 0.8,  // Sunday (low)\n    1: 1.1,  // Monday\n    2: 1.2,  // Tuesday (high)\n    3: 1.2,  // Wednesday (high)\n    4: 1.1,  // Thursday\n    5: 1.0,  // Friday\n    6: 0.9   // Saturday\n  }\n};\n\n// Exchange characteristics\nconst EXCHANGES = {\n  'Uniswap': { spread: 0.003, liquidity: 50000000, reliability: 0.95 },\n  'SushiSwap': { spread: 0.0035, liquidity: 20000000, reliability: 0.92 },\n  '1inch': { spread: 0.0025, liquidity: 100000000, reliability: 0.98 },\n  'Kraken': { spread: 0.002, liquidity: 200000000, reliability: 0.99 }\n};\n\n// Helper functions\nfunction randomGaussian(mean = 0, stdev = 1) {\n  const u = 1 - Math.random();\n  const v = Math.random();\n  const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);\n  return z * stdev + mean;\n}\n\nfunction generateGasPrice(timestamp) {\n  const date = new Date(timestamp);\n  const hour = date.getHours();\n  const dayOfWeek = date.getDay();\n  \n  const baseGas = 30; // Base gas price in gwei\n  const hourMultiplier = GAS_PATTERNS.hour[hour] || 1.0;\n  const dayMultiplier = GAS_PATTERNS.dayOfWeek[dayOfWeek] || 1.0;\n  \n  // Add some randomness\n  const randomFactor = 1 + randomGaussian(0, 0.1);\n  \n  return Math.max(15, Math.round(baseGas * hourMultiplier * dayMultiplier * randomFactor));\n}\n\nfunction generateOpportunity(timestamp, symbol, dayIndex) {\n  const params = MARKET_PARAMS[symbol];\n  \n  // Price with trend and volatility\n  const trendFactor = 1 + (params.trendStrength * dayIndex);\n  const volatilityFactor = randomGaussian(1, params.volatility);\n  const basePrice = params.basePrice * trendFactor * volatilityFactor;\n  \n  // Select random exchanges\n  const exchangeNames = Object.keys(EXCHANGES);\n  const buyExchange = exchangeNames[Math.floor(Math.random() * exchangeNames.length)];\n  let sellExchange = exchangeNames[Math.floor(Math.random() * exchangeNames.length)];\n  while (sellExchange === buyExchange) {\n    sellExchange = exchangeNames[Math.floor(Math.random() * exchangeNames.length)];\n  }\n  \n  // Generate realistic spread (mostly small, occasionally larger)\n  let spreadPercent;\n  const rand = Math.random();\n  if (rand < 0.6) {\n    // 60% - No opportunity (negative or tiny spread)\n    spreadPercent = randomGaussian(-0.1, 0.15);\n  } else if (rand < 0.85) {\n    // 25% - Small opportunity\n    spreadPercent = randomGaussian(0.3, 0.2);\n  } else if (rand < 0.95) {\n    // 10% - Good opportunity\n    spreadPercent = randomGaussian(0.7, 0.3);\n  } else {\n    // 5% - Great opportunity\n    spreadPercent = randomGaussian(1.2, 0.4);\n  }\n  \n  // Calculate prices\n  const buyPrice = basePrice * (1 - Math.abs(spreadPercent) / 200);\n  const sellPrice = basePrice * (1 + Math.abs(spreadPercent) / 200);\n  \n  // Gas calculations\n  const gasPrice = generateGasPrice(timestamp);\n  const gasLimit = 200000;\n  const ethPrice = MARKET_PARAMS.WETH.basePrice * trendFactor;\n  const gasCostUsd = (gasPrice * gasLimit / 1e9) * ethPrice;\n  \n  // Trade calculations\n  const tradeSize = 1000; // $1000 trades\n  const grossProfit = (spreadPercent / 100) * tradeSize;\n  const netProfit = grossProfit - gasCostUsd;\n  \n  // Execution decision\n  const profitThreshold = gasPrice > 40 ? 0.7 : gasPrice > 30 ? 0.5 : 0.3;\n  const wouldExecute = spreadPercent >= profitThreshold && netProfit > 5;\n  \n  // Determine execution window\n  let executionWindow;\n  if (gasPrice < 25) executionWindow = 'Optimal';\n  else if (gasPrice < 35) executionWindow = 'Good';\n  else if (gasPrice < 50) executionWindow = 'Poor';\n  else executionWindow = 'Avoid';\n  \n  // Risk status (varies throughout the day)\n  let riskStatus = 'Safe';\n  if (Math.random() < 0.1) riskStatus = 'Warning';\n  if (Math.random() < 0.02) riskStatus = 'Critical';\n  \n  // Simulate paper trading results\n  let realizedProfit = netProfit;\n  if (wouldExecute && netProfit > 0) {\n    // Add realistic slippage and execution variance\n    const slippage = randomGaussian(0, 0.1) * tradeSize / 100;\n    realizedProfit = netProfit - slippage;\n  }\n  \n  return {\n    timestamp: new Date(timestamp).toISOString(),\n    pair: symbol === 'WBTC' ? 'WBTC/USDC' : 'ETH/USDC',\n    profit_potential: Number(spreadPercent.toFixed(3)),\n    opportunity_type: netProfit > 10 ? 'High Profit' : netProfit > 5 ? 'Medium Profit' : 'Low Profit',\n    buy_exchange: buyExchange,\n    sell_exchange: sellExchange,\n    buy_price: Number(buyPrice.toFixed(2)),\n    sell_price: Number(sellPrice.toFixed(2)),\n    gas_cost_usd: Number(gasCostUsd.toFixed(2)),\n    net_profit_estimate: Number(netProfit.toFixed(2)),\n    execution_status: wouldExecute ? 'Executed' : 'Skipped',\n    skip_reason: wouldExecute ? null : 'Below threshold',\n    execution_window: executionWindow,\n    dynamic_threshold: profitThreshold,\n    risk_status: riskStatus,\n    risk_adjusted_trade_size: riskStatus === 'Critical' ? 500 : riskStatus === 'Warning' ? 750 : 1000,\n    trading_allowed: riskStatus !== 'Halted',\n    paper_trade_executed: wouldExecute,\n    trade_amount_usd: tradeSize,\n    slippage_cost: wouldExecute ? Math.abs(realizedProfit - netProfit) : 0,\n    realized_profit: wouldExecute ? realizedProfit : 0,\n    paper_trade_success: wouldExecute && realizedProfit > 0,\n    return_on_investment: wouldExecute ? (realizedProfit / tradeSize) * 100 : 0,\n    is_winning_trade: wouldExecute && realizedProfit > 0\n  };\n}\n\n// Generate data\nconst opportunities = [];\nconst dailySummaries = [];\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - DAYS_TO_GENERATE);\n\nfor (let day = 0; day < DAYS_TO_GENERATE; day++) {\n  const dayStart = new Date(startDate);\n  dayStart.setDate(dayStart.getDate() + day);\n  dayStart.setHours(0, 0, 0, 0);\n  \n  let dailyProfit = 0;\n  let dailyTrades = 0;\n  let dailyWins = 0;\n  \n  // Generate opportunities throughout the day\n  for (let halfHour = 0; halfHour < OPPORTUNITIES_PER_DAY; halfHour++) {\n    const timestamp = dayStart.getTime() + (halfHour * 30 * 60 * 1000);\n    \n    // Generate for both WETH and WBTC\n    for (const symbol of ['WETH', 'WBTC']) {\n      const opp = generateOpportunity(timestamp, symbol, day);\n      opportunities.push(opp);\n      \n      if (opp.paper_trade_executed) {\n        dailyTrades++;\n        dailyProfit += opp.realized_profit;\n        if (opp.paper_trade_success) dailyWins++;\n      }\n    }\n  }\n  \n  // Create daily summary\n  dailySummaries.push({\n    date: dayStart.toISOString().split('T')[0],\n    total_opportunities: OPPORTUNITIES_PER_DAY * 2,\n    executed_trades: dailyTrades,\n    winning_trades: dailyWins,\n    losing_trades: dailyTrades - dailyWins,\n    win_rate: dailyTrades > 0 ? (dailyWins / dailyTrades) * 100 : 0,\n    total_profit: Number(dailyProfit.toFixed(2)),\n    avg_profit_per_trade: dailyTrades > 0 ? Number((dailyProfit / dailyTrades).toFixed(2)) : 0,\n    best_opportunity: Math.max(...opportunities.filter(o => \n      o.timestamp.startsWith(dayStart.toISOString().split('T')[0])\n    ).map(o => o.profit_potential)),\n    performance_rating: dailyProfit > 100 ? 'Excellent' : dailyProfit > 50 ? 'Good' : 'Average'\n  });\n}\n\nconsole.log(`\\n✅ Generated ${opportunities.length} opportunities over ${DAYS_TO_GENERATE} days`);\nconsole.log(`📊 Summary Statistics:`);\n\nconst executedTrades = opportunities.filter(o => o.paper_trade_executed);\nconst winningTrades = executedTrades.filter(o => o.paper_trade_success);\nconst totalProfit = executedTrades.reduce((sum, o) => sum + o.realized_profit, 0);\n\nconsole.log(`  Total Opportunities: ${opportunities.length}`);\nconsole.log(`  Executed Trades: ${executedTrades.length} (${(executedTrades.length/opportunities.length*100).toFixed(1)}%)`);\nconsole.log(`  Winning Trades: ${winningTrades.length}`);\nconsole.log(`  Win Rate: ${(winningTrades.length/executedTrades.length*100).toFixed(1)}%`);\nconsole.log(`  Total Profit: $${totalProfit.toFixed(2)}`);\nconsole.log(`  Avg Profit/Trade: $${(totalProfit/executedTrades.length).toFixed(2)}`);\nconsole.log(`  Daily Average: $${(totalProfit/DAYS_TO_GENERATE).toFixed(2)}`);\n\n// Output format for n8n\nreturn [\n  {\n    json: {\n      type: 'opportunities',\n      count: opportunities.length,\n      data: opportunities,\n      table: 'Real_Time_Monitor'\n    }\n  },\n  {\n    json: {\n      type: 'daily_summaries', \n      count: dailySummaries.length,\n      data: dailySummaries,\n      table: 'Daily_Performance'\n    }\n  },\n  {\n    json: {\n      type: 'statistics',\n      total_opportunities: opportunities.length,\n      executed_trades: executedTrades.length,\n      win_rate: (winningTrades.length/executedTrades.length*100).toFixed(1),\n      total_profit: totalProfit.toFixed(2),\n      avg_profit_per_trade: (totalProfit/executedTrades.length).toFixed(2)\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ],
+      "id": "a09d0898-02f5-4fa6-a39b-de1c7a086e35",
+      "name": "Generate 30 Days Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0efada30-00b9-4769-a7a5-10bcf9d1d657",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "opportunities",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        96
+      ],
+      "id": "07f5be93-2eca-4346-86b7-9d3efd30cef4",
+      "name": "Split by Type"
+    },
+    {
+      "parameters": {
+        "batchSize": 100,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        896,
+        -48
+      ],
+      "id": "827902cd-51a4-40fa-b103-554ab57fd8d7",
+      "name": "Batch 100"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "007ead43-b5f4-4e96-9c6a-86359b22ba22",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "daily_summaries",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        192
+      ],
+      "id": "2e736849-72da-4208-8fa6-c9cb3acae628",
+      "name": "Check Daily?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract daily summaries\nconst input = $json;\nconst summaries = input.data;\n\n// Return each summary as separate item\nreturn summaries.map(summary => ({\n  json: summary\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        192
+      ],
+      "id": "de6e20a2-6c52-40c3-8ce5-0a8d1fd87809",
+      "name": "Format Daily"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqnzuGWSvyN5vyn",
+          "mode": "list",
+          "cachedResultName": "Daily_Performance",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblqnzuGWSvyN5vyn"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_opportunites",
+              "displayName": "total_opportunites",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profitable_count",
+              "displayName": "profitable_count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_profit_usd",
+              "displayName": "total_profit_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_gas_cost",
+              "displayName": "avg_gas_cost",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "success_rate",
+              "displayName": "success_rate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "best_pair",
+              "displayName": "best_pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "highest_profit",
+              "displayName": "highest_profit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "executed_trades",
+              "displayName": "executed_trades",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "winning_trades",
+              "displayName": "winning_trades",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "win_rate",
+              "displayName": "win_rate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_profit",
+              "displayName": "total_profit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_profit_per_trade",
+              "displayName": "avg_profit_per_trade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "best_opportunity",
+              "displayName": "best_opportunity",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "performance_rating",
+              "displayName": "performance_rating",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Excellent",
+                  "value": "Excellent"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Average",
+                  "value": "Average"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        192
+      ],
+      "id": "60e09936-9fcf-4d8e-ad12-e8bf49b8cb5e",
+      "name": "Save Daily Performance to Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log(`✅ Successfully saved ${$items().length} records to Airtable`);\nreturn [{\n  json: {\n    status: 'success',\n    records_saved: $items().length,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -192
+      ],
+      "id": "4bef72f3-79c7-487a-a8d8-9ce1ace7952b",
+      "name": "Log Opportunity Write Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log(`✅ Successfully saved ${$items().length} records to Airtable`);\nreturn [{\n  json: {\n    status: 'success',\n    records_saved: $items().length,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        192
+      ],
+      "id": "d16dffe7-3623-401c-bffe-a8a34987a2c6",
+      "name": "Log Daily Performance Write Success"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Generate 30 Days Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Opportunities for Airtable": {
+      "main": [
+        [
+          {
+            "node": "Batch 100",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Opportunities to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Batch 100",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate 30 Days Data": {
+      "main": [
+        [
+          {
+            "node": "Split by Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split by Type": {
+      "main": [
+        [
+          {
+            "node": "Format Opportunities for Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Daily?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch 100": {
+      "main": [
+        [
+          {
+            "node": "Log Opportunity Write Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Opportunities to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Daily?": {
+      "main": [
+        [
+          {
+            "node": "Format Daily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Daily": {
+      "main": [
+        [
+          {
+            "node": "Save Daily Performance to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Daily Performance to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Log Daily Performance Write Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1aba5b13-fdac-4dc5-96c5-f695ffdc98e3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "L2irvbzW3qO5X4dS",
+  "tags": [
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    },
+    {
+      "createdAt": "2025-10-14T22:33:24.167Z",
+      "updatedAt": "2025-10-14T22:33:24.167Z",
+      "id": "xF4gkp2D0t0GbV3e",
+      "name": "ML"
+    }
+  ]
+}

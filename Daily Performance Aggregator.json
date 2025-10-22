@@ -1,0 +1,435 @@
+{
+  "name": "Daily Performance Aggregator - Github",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "59 23 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -48
+      ],
+      "id": "f0e287c7-1fd4-48dc-86da-c51d596b0472",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvphSZ03UMvKaGs",
+          "mode": "list",
+          "cachedResultName": "Opportunities",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblvphSZ03UMvKaGs"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        -144
+      ],
+      "id": "df5b75c7-8c55-496a-9be8-579c71d9c3ea",
+      "name": "Get Today's Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblc31suoY5ijmSNE",
+          "mode": "list",
+          "cachedResultName": "Executed_Trades",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblc31suoY5ijmSNE"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        48
+      ],
+      "id": "c29f9d15-0ae4-4c86-8f92-a78068691548",
+      "name": "Get Today's Executed Trades",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate daily performance statistics - CORRECTED VERSION\nconsole.log(\"=== DAILY PERFORMANCE CALCULATION START ===\");\n\nconst allInputData = $input.all();\nconst today = new Date().toISOString().split('T')[0];\n\n// Extract data from Airtable responses\nlet opportunities = [];\nlet executedTrades = [];\n\nallInputData.forEach((item, index) => {\n  if (item.json) {\n    if (Array.isArray(item.json)) {\n      item.json.forEach(record => {\n        // Opportunities table\n        if (record.pair && record.hasOwnProperty('profit_percent')) {\n          opportunities.push(record);\n        }\n        // Executed_Trades table\n        if (record.pair && record.hasOwnProperty('profit_amount')) {\n          executedTrades.push(record);\n        }\n      });\n    } else {\n      if (item.json.pair && item.json.hasOwnProperty('profit_percent')) {\n        opportunities.push(item.json);\n      }\n      if (item.json.pair && item.json.hasOwnProperty('profit_amount')) {\n        executedTrades.push(item.json);\n      }\n    }\n  }\n});\n\n// Calculate metrics\nconst totalOpportunities = opportunities.length;\nconst profitableOpportunities = opportunities.filter(opp => \n  parseFloat(opp.profit_percent) > 0\n);\nconst profitableCount = profitableOpportunities.length;\n\nconst successfulTrades = executedTrades.filter(trade => \n  trade.status === 'completed'\n);\n\nconsole.log(`=== DATA EXTRACTION RESULTS ===`);\nconsole.log(`Total opportunities: ${totalOpportunities}`);\nconsole.log(`Profitable opportunities: ${profitableCount}`);\nconsole.log(`Total executed trades: ${executedTrades.length}`);\nconsole.log(`Successful trades: ${successfulTrades.length}`);\n\n// Skip if no data\nif (totalOpportunities < 1) {\n  console.log(`No opportunities found for ${today}`);\n  return [];\n}\n\n// Calculate total profit\nconst totalProfit = executedTrades.reduce((sum, trade) => {\n  const profit = parseFloat(trade.profit_amount) || 0;\n  // Filter out unrealistic values\n  if (Math.abs(profit) > 10000) return sum;\n  return sum + profit;\n}, 0);\n\n// Calculate average gas cost\nconst avgGasCost = opportunities.length > 0 \n  ? opportunities.reduce((sum, opp) => sum + (parseFloat(opp.gas_price) || 0), 0) / opportunities.length \n  : 0;\n\n// FIXED: Calculate success rate based on executed trades\nlet successRate = 0;\nif (executedTrades.length > 0) {\n  successRate = (successfulTrades.length / executedTrades.length) * 100;\n} else {\n  successRate = 0;\n}\n\n// Calculate win rate (profitable trades / total trades)\nconst profitableTrades = executedTrades.filter(trade => \n  parseFloat(trade.profit_amount) > 0\n);\nconst winRate = executedTrades.length > 0 \n  ? (profitableTrades.length / executedTrades.length) * 100\n  : 0;\n\n// Find best performing pair\nconst pairProfits = {};\nexecutedTrades.forEach(trade => {\n  const pair = trade.pair || 'Unknown';\n  const profit = parseFloat(trade.profit_amount) || 0;\n  if (Math.abs(profit) <= 10000) {\n    pairProfits[pair] = (pairProfits[pair] || 0) + profit;\n  }\n});\n\nconst bestPair = Object.keys(pairProfits).length > 0 \n  ? Object.keys(pairProfits).reduce((best, pair) => \n      pairProfits[pair] > (pairProfits[best] || -Infinity) ? pair : best, \n      Object.keys(pairProfits)[0])\n  : 'None';\n\n// Find highest single profit\nconst validProfits = executedTrades\n  .map(trade => parseFloat(trade.profit_amount) || 0)\n  .filter(profit => Math.abs(profit) <= 10000);\nconst highestProfit = validProfits.length > 0 \n  ? Math.max(...validProfits) \n  : 0;\n\nconst result = {\n  date: today,\n  total_opportunities: totalOpportunities,\n  profitable_count: profitableCount,\n  executed_trades: executedTrades.length,\n  winning_trades: profitableTrades.length,\n  total_profit_usd: Math.round(totalProfit * 100) / 100,\n  win_rate: Math.round(winRate * 100) / 100,\n  avg_gas_cost: Math.round(avgGasCost * 100) / 100,\n  success_rate: Math.round(successRate * 100) / 100,\n  best_pair: bestPair,\n  highest_profit: Math.round(highestProfit * 100) / 100,\n  total_profit: Math.round(totalProfit * 100) / 100,\n  avg_profit_per_trade: executedTrades.length > 0 \n    ? Math.round((totalProfit / executedTrades.length) * 100) / 100 \n    : 0,\n  best_opportunity: Math.round(highestProfit * 100) / 100\n};\n\nconsole.log(\"=== FINAL RESULT ===\");\nconsole.log(JSON.stringify(result, null, 2));\n\nreturn [{ json: result }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -48
+      ],
+      "id": "e1a1b3c8-9476-44f2-8a14-aa8071f74cbe",
+      "name": "Calculate Daily Stats"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqnzuGWSvyN5vyn",
+          "mode": "list",
+          "cachedResultName": "Daily_Performance",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblqnzuGWSvyN5vyn"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "profitable_count": "={{ $json.profitable_count }}",
+            "total_profit_usd": "={{ $json.total_profit_usd }}",
+            "avg_gas_cost": "={{ $json.avg_gas_cost }}",
+            "success_rate": "={{ $json.success_rate }}",
+            "best_pair": "={{ $json.best_pair }}",
+            "highest_profit": "={{ $json.highest_profit }}",
+            "best_opportunity": 0,
+            "avg_profit_per_trade": 0,
+            "total_profit": 0,
+            "win_rate": 0,
+            "winning_trades": 0,
+            "executed_trades": 0,
+            "total_opportunities": "={{ $json.total_opportunities }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_opportunities",
+              "displayName": "total_opportunities",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profitable_count",
+              "displayName": "profitable_count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_profit_usd",
+              "displayName": "total_profit_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_gas_cost",
+              "displayName": "avg_gas_cost",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "success_rate",
+              "displayName": "success_rate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "best_pair",
+              "displayName": "best_pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "highest_profit",
+              "displayName": "highest_profit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "executed_trades",
+              "displayName": "executed_trades",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "winning_trades",
+              "displayName": "winning_trades",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "win_rate",
+              "displayName": "win_rate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_profit",
+              "displayName": "total_profit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_profit_per_trade",
+              "displayName": "avg_profit_per_trade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "best_opportunity",
+              "displayName": "best_opportunity",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "performance_rating",
+              "displayName": "performance_rating",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Excellent",
+                  "value": "Excellent"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Average",
+                  "value": "Average"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        896,
+        -48
+      ],
+      "id": "88d0bcb0-f613-4b03-8fbb-bad14d9538c4",
+      "name": "Store Daily Performance",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        -48
+      ],
+      "id": "4dc14308-72e4-4a77-b358-a0acc23d5809",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Today's Opportunities",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Today's Executed Trades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today's Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today's Executed Trades": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Calculate Daily Stats": {
+      "main": [
+        [
+          {
+            "node": "Store Daily Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Calculate Daily Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "82735dc6-bff6-4e9d-87d8-f58b4951e1af",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "oW32wTp1EIGxPkdo",
+  "tags": [
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}

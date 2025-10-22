@@ -1,0 +1,2692 @@
+{
+  "name": "Cross-DEX Arbitrage Monitor - Girhub",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://api.dexscreener.com/token-pairs/v1/ethereum/{{ $json.address }}\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        1376
+      ],
+      "id": "561883a2-2b92-4926-b4b4-a212c37acad9",
+      "name": "Get SushiSwap Price"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1104,
+        1520
+      ],
+      "id": "aaab4831-f666-4322-9cc9-b94e57aa01c6",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      symbol: \"WETH\",\n      address: \"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\n      pair: \"ETH/USDC\",\n      usdcAddress: \"0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48\"\n    }\n  },\n  {\n    json: {\n      symbol: \"WBTC\",\n      address: \"0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599\",\n      pair: \"WBTC/USDC\",\n      usdcAddress: \"0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        1520
+      ],
+      "id": "08a3f027-febd-4822-abcf-2322e96a73fb",
+      "name": "Parse Pairs"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Multi-token arbitrage calculator with full diagnostics\nconst allData = $input.all();\n\nconsole.log(`\\n🔍 === ARBITRAGE CALCULATION START ===`);\nconsole.log(`Total input items: ${allData.length}`);\n\n// Extract only the price quote items\nconst priceQuotes = allData.filter(item => {\n  const j = item.json || {};\n  return j.exchange && j.price && j.symbol;\n});\n\nconsole.log(`Found ${priceQuotes.length} valid price quotes`);\n\n// Group quotes by symbol\nconst quotesBySymbol = {\n  WETH: [],\n  WBTC: []\n};\n\npriceQuotes.forEach(item => {\n  const quote = item.json;\n  if (quote.symbol === 'WETH') {\n    quotesBySymbol.WETH.push(quote);\n  } else if (quote.symbol === 'WBTC') {\n    quotesBySymbol.WBTC.push(quote);\n  }\n});\n\nconsole.log(`WETH quotes: ${quotesBySymbol.WETH.length}`);\nconsole.log(`WBTC quotes: ${quotesBySymbol.WBTC.length}`);\n\n// Extract other necessary data\nconst gasData = allData.find(item => item.json?.has_trend_data);\nconst gasOptimization = allData.find(item => \n  item.json?.recommended_threshold !== undefined\n);\nconst riskData = allData.find(item => \n  item.json?.risk_status !== undefined && item.json?.total_portfolio_value\n);\nconst mlThreshold = allData.find(item => \n  item.json?.optimal_threshold !== undefined && item.json?.method\n);\n\n// Process each token\nfunction processToken(symbol, quotes) {\n  console.log(`\\n=== Processing ${symbol} ===`);\n  console.log(`${quotes.length} quotes available`);\n  \n  if (quotes.length < 2) {\n    console.log(`Insufficient quotes for arbitrage`);\n    return null;\n  }\n  \n  // Show ALL possible spreads for diagnosis\n  console.log('\\n📊 All Cross-Exchange Spreads:');\n  let bestOpportunity = null;\n  let bestSpread = -Infinity;\n  \n  for (const buyQuote of quotes) {\n    for (const sellQuote of quotes) {\n      // Skip if same exchange\n      if (buyQuote.exchange === sellQuote.exchange) continue;\n      \n      // Calculate spread for this pair\n      const spread = ((sellQuote.effectiveSell - buyQuote.effectiveBuy) / buyQuote.effectiveBuy) * 100;\n      \n      // Only show top opportunities to avoid clutter\n      if (spread > -0.5) { // Show spreads better than -0.5%\n        console.log(`  Buy ${buyQuote.exchange} @ $${buyQuote.effectiveBuy.toFixed(2)}, Sell ${sellQuote.exchange} @ $${sellQuote.effectiveSell.toFixed(2)} = ${spread.toFixed(4)}%`);\n      }\n      \n      // Track the best opportunity\n      if (spread > bestSpread) {\n        bestSpread = spread;\n        bestOpportunity = {\n          buyQuote,\n          sellQuote,\n          spreadPercent: spread\n        };\n      }\n    }\n  }\n  \n  console.log(`\\nBest spread found: ${bestSpread.toFixed(4)}%`);\n  \n  if (!bestOpportunity || bestSpread <= 0) {\n    console.log(`❌ No positive cross-exchange arbitrage found`);\n    return null;\n  }\n  \n  const { buyQuote, sellQuote, spreadPercent } = bestOpportunity;\n  \n  console.log(`✅ Found arbitrage opportunity:`);\n  console.log(`  Buy: ${buyQuote.exchange} @ $${buyQuote.effectiveBuy.toFixed(2)}`);\n  console.log(`  Sell: ${sellQuote.exchange} @ $${sellQuote.effectiveSell.toFixed(2)}`);\n  console.log(`  Spread: ${spreadPercent.toFixed(4)}%`);\n  \n  // Calculate costs and profits\n  const tradeSize = riskData?.json?.max_position_size || 1000;\n  const currentGasGwei = gasData?.json?.current_gas_gwei || 35;\n  const gasLimit = 200000;\n  const ethPriceUsd = 4000;\n  const gasCostEth = (currentGasGwei * gasLimit) / 1e9;\n  const gasCostUsd = gasCostEth * ethPriceUsd;\n  \n  const grossProfit = (spreadPercent / 100) * tradeSize;\n  const netProfit = grossProfit - gasCostUsd;\n  \n  console.log(`  Trade size: $${tradeSize}`);\n  console.log(`  Gross profit: $${grossProfit.toFixed(2)}`);\n  console.log(`  Gas cost: $${gasCostUsd.toFixed(2)}`);\n  console.log(`  Net profit: $${netProfit.toFixed(2)}`);\n  \n  // Get dynamic threshold\n  let dynamicThreshold = 0.5;\n  if (mlThreshold?.json?.optimal_threshold) {\n    dynamicThreshold = mlThreshold.json.optimal_threshold;\n  } else if (gasOptimization?.json?.recommended_threshold) {\n    dynamicThreshold = gasOptimization.json.recommended_threshold;\n  }\n  \n  // Tiered execution logic\n  let shouldExecute = false;\n  let executionReason = '';\n  \n  if (spreadPercent >= 2.0) {\n    shouldExecute = true;\n    executionReason = `High spread opportunity (${spreadPercent.toFixed(3)}%)`;\n  } else if (spreadPercent >= 0.5 && netProfit > 20) {\n    shouldExecute = true;\n    executionReason = `Moderate spread with good profit ($${netProfit.toFixed(2)})`;\n  } else if (spreadPercent >= 0.15 && netProfit > 10 && gasData?.json?.historical_trading_window === 'Good') {\n    shouldExecute = true;\n    executionReason = `Small spread in optimal gas window`;\n  } else if (spreadPercent >= 0.1 && netProfit > 5 && currentGasGwei <= 5) {\n    shouldExecute = true;\n    executionReason = `Low gas opportunity (${currentGasGwei} gwei)`;\n  } else if (spreadPercent >= 0.01 && netProfit > 1) {\n    shouldExecute = true;\n    executionReason = `Micro arbitrage opportunity`;\n  } else {\n    shouldExecute = false;\n    if (netProfit <= 0) {\n      executionReason = `Unprofitable after gas ($${netProfit.toFixed(2)})`;\n    } else {\n      executionReason = `Spread too low (${spreadPercent.toFixed(4)}%)`;\n    }\n  }\n  \n  const txHash = shouldExecute \n    ? `0x${Math.random().toString(16).slice(2).padStart(60, '0')}`\n    : null;\n  \n  return {\n    pair: `${symbol}/USD`,\n    symbol,\n    buyExchange: buyQuote.exchange,\n    sellExchange: sellQuote.exchange,\n    buyPrice: buyQuote.price,\n    sellPrice: sellQuote.price,\n    buyPriceEff: buyQuote.effectiveBuy,\n    sellPriceEff: sellQuote.effectiveSell,\n    profitPercent: Number(spreadPercent.toFixed(4)),\n    gasPrice: currentGasGwei,\n    gasLimit,\n    gasCostUsd: Number(gasCostUsd.toFixed(2)),\n    grossProfit: Number(grossProfit.toFixed(2)),\n    netProfit: Number(netProfit.toFixed(2)),\n    isProfitable: netProfit > 0,\n    success: shouldExecute,\n    executedAt: new Date().toISOString(),\n    dynamicThreshold,\n    executionReason,\n    tradeAmount: tradeSize,\n    txHash,\n    gasWindow: gasData?.json?.historical_trading_window || 'Unknown',\n    riskStatus: riskData?.json?.risk_status || 'Unknown'\n  };\n}\n\n// Process both tokens\nconst results = [];\n\nif (quotesBySymbol.WETH.length >= 2) {\n  const wethResult = processToken('WETH', quotesBySymbol.WETH);\n  if (wethResult) results.push({ json: wethResult });\n}\n\nif (quotesBySymbol.WBTC.length >= 2) {\n  const wbtcResult = processToken('WBTC', quotesBySymbol.WBTC);\n  if (wbtcResult) results.push({ json: wbtcResult });\n}\n\nconsole.log(`\\n✅ Returning ${results.length} arbitrage opportunities`);\n\n// Show summary of market conditions\nif (results.length === 0) {\n  console.log('\\n📊 Market Summary:');\n  console.log('  No profitable arbitrage opportunities detected');\n  console.log('  This is normal - arbitrage windows are typically brief');\n  console.log('  Continue monitoring for opportunities...');\n}\n\nreturn results.length > 0 ? results : [{\n  json: {\n    error: 'No valid arbitrage opportunities found',\n    reason: 'Market prices are currently too efficient - no positive spreads detected',\n    marketCondition: 'efficient',\n    suggestion: 'Continue monitoring - opportunities typically appear during high volatility or network congestion',\n    executedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        1184
+      ],
+      "id": "4bd9b523-4d98-4492-8614-27588f4fc503",
+      "name": "Calculate Arbitrage"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        688,
+        1088
+      ],
+      "id": "f00954f8-927c-44b5-ae32-2e5825255316",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblc31suoY5ijmSNE",
+          "mode": "list",
+          "cachedResultName": "Executed_Trades",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblc31suoY5ijmSNE"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "pair": "={{ $json.pair }}",
+            "profit_amount": "={{ $json.netProfit }}",
+            "gas_used": "={{ $json.gasLimit || 150000 }}",
+            "tx_hash": "={{ $json.txHash }}",
+            "status": "={{ $json.success ? 'completed' : 'failed' }}",
+            "executed_at": "={{ $json.executedAt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "pair",
+              "displayName": "pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profit_amount",
+              "displayName": "profit_amount",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gas_used",
+              "displayName": "gas_used",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "tx_hash",
+              "displayName": "tx_hash",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "completed",
+                  "value": "completed"
+                },
+                {
+                  "name": "failed",
+                  "value": "failed"
+                },
+                {
+                  "name": "pending",
+                  "value": "pending"
+                },
+                {
+                  "name": "status",
+                  "value": "status"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "executed_at",
+              "displayName": "executed_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3136,
+        992
+      ],
+      "id": "fbaf5f6b-c4c4-4850-8833-51e79e429ae6",
+      "name": "Store Trade in Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblTi1hnwjHoJIEG9"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.executedAt }}",
+            "pair": "={{ $json.pair }}",
+            "opportunity_type": "={{ $json.netProfit > 50 ? 'High Profit' : $json.netProfit > 10 ? 'Medium Profit' : $json.netProfit > 0 ? 'Low Profit' : 'Gas Too High' }}",
+            "profit_potential": "={{ $json.profitPercent }}",
+            "buy_exchange": "={{ $json.buyExchange }}",
+            "sell_exchange": "={{ $json.sellExchange }}",
+            "buy_price": "={{ $json.buyPrice }}",
+            "sell_price": "={{ $json.sellPrice }}",
+            "gas_cost_usd": "={{ $json.gasCostUsd }}",
+            "net_profit_estimate": "={{ $json.netProfit }}",
+            "execution_status": "={{ $json.success ? 'Executed' : 'Skipped' }}",
+            "skip_reason": "={{ $json.executionReason }}",
+            "execution_window": "={{ $json.executionWindow }}",
+            "dynamic_threshold": "={{ $json.dynamicThreshold }}",
+            "optimization_age": "={{ $json.optimizationAge }}",
+            "risk_adjusted_trade_size": "={{ $json.riskAdjustedTradeSize }}",
+            "risk_status": "={{ $json.riskStatus }}",
+            "trading_allowed": "={{ $json.tradingAllowed }}",
+            "trade_amount_usd": "={{ $json.tradeAmount }}",
+            "slippage_cost": "={{ $json.slippageCost }}",
+            "realized_profit": "={{ $json.realizedNetProfit }}",
+            "return_on_investment": "={{ $json.returnOnInvestment }}",
+            "paper_trade_executed": "={{ $json.paperTrade }}",
+            "paper_trade_success": "={{ $json.paperTradeSuccess }}",
+            "is_winning_trade": "={{ $json.isWinningTrade }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pair",
+              "displayName": "pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profit_potential",
+              "displayName": "profit_potential",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "opportunity_type",
+              "displayName": "opportunity_type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Optimal",
+                  "value": "Optimal"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                },
+                {
+                  "name": "Avoid",
+                  "value": "Avoid"
+                },
+                {
+                  "name": "High Profit",
+                  "value": "High Profit"
+                },
+                {
+                  "name": "Medium Profit",
+                  "value": "Medium Profit"
+                },
+                {
+                  "name": "Low Profit",
+                  "value": "Low Profit"
+                },
+                {
+                  "name": "Gas Too High",
+                  "value": "Gas Too High"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "buy_exchange",
+              "displayName": "buy_exchange",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sell_exchange",
+              "displayName": "sell_exchange",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "buy_price",
+              "displayName": "buy_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sell_price",
+              "displayName": "sell_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gas_cost_usd",
+              "displayName": "gas_cost_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "net_profit_estimate",
+              "displayName": "net_profit_estimate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_status",
+              "displayName": "execution_status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Executed",
+                  "value": "Executed"
+                },
+                {
+                  "name": "Skipped",
+                  "value": "Skipped"
+                },
+                {
+                  "name": "Pending",
+                  "value": "Pending"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "skip_reason",
+              "displayName": "skip_reason",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_window",
+              "displayName": "execution_window",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Optimal",
+                  "value": "Optimal"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                },
+                {
+                  "name": "Avoid",
+                  "value": "Avoid"
+                },
+                {
+                  "name": "Unknown",
+                  "value": "Unknown"
+                },
+                {
+                  "name": " got 0.12%)",
+                  "value": " got 0.12%)"
+                },
+                {
+                  "name": " got 0.19%)",
+                  "value": " got 0.19%)"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "dynamic_threshold",
+              "displayName": "dynamic_threshold",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "optimization_age",
+              "displayName": "optimization_age",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "risk_status",
+              "displayName": "risk_status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Safe",
+                  "value": "Safe"
+                },
+                {
+                  "name": "Warning",
+                  "value": "Warning"
+                },
+                {
+                  "name": "Critical",
+                  "value": "Critical"
+                },
+                {
+                  "name": "Halted",
+                  "value": "Halted"
+                },
+                {
+                  "name": "Unknown",
+                  "value": "Unknown"
+                },
+                {
+                  "name": "750",
+                  "value": "750"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "risk_adjusted_trade_size",
+              "displayName": "risk_adjusted_trade_size",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "trading_allowed",
+              "displayName": "trading_allowed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "paper_trade_executed",
+              "displayName": "paper_trade_executed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "trade_amount_usd",
+              "displayName": "trade_amount_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "trade_amount_usd copy",
+              "displayName": "trade_amount_usd copy",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "slippage_cost",
+              "displayName": "slippage_cost",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "realized_profit",
+              "displayName": "realized_profit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "paper_trade_success",
+              "displayName": "paper_trade_success",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "return_on_investment",
+              "displayName": "return_on_investment",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "is_winning_trade",
+              "displayName": "is_winning_trade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3136,
+        1184
+      ],
+      "id": "ca0d02ef-0a8b-4297-b4bd-8ed0ec55c869",
+      "name": "Store Real-Time Opportunity",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvJjff6pe5s7zNc",
+          "mode": "list",
+          "cachedResultName": "Gas_Optimization",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblvJjff6pe5s7zNc"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1360,
+        1232
+      ],
+      "id": "190b9bce-8d4d-4648-b1b5-8cfa59102fca",
+      "name": "Get Current Gas Recommendation",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1584,
+        1040
+      ],
+      "id": "cfede2ce-8572-42bd-9496-e5740d7eef6f",
+      "name": "Merge with Gas Data"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblG0eFbUU08D6DZH",
+          "mode": "list",
+          "cachedResultName": "Gas_Tracker",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblG0eFbUU08D6DZH"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "gas_price_gwei": "={{ $json.gas_price_gwei }}",
+            "eth_price_usd": "={{ $json.eth_price_usd }}",
+            "gas_cost_per_trade": "={{ $json.gas_cost_per_trade }}",
+            "network_status": "={{ $json.network_status }}",
+            "profitable_threshold": "={{ $json.profitable_threshold }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gas_price_gwei",
+              "displayName": "gas_price_gwei",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "eth_price_usd",
+              "displayName": "eth_price_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gas_cost_per_trade",
+              "displayName": "gas_cost_per_trade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "network_status",
+              "displayName": "network_status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Low",
+                  "value": "Low"
+                },
+                {
+                  "name": "Medium",
+                  "value": "Medium"
+                },
+                {
+                  "name": "High",
+                  "value": "High"
+                },
+                {
+                  "name": "Extreme",
+                  "value": "Extreme"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profitable_threshold",
+              "displayName": "profitable_threshold",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        688,
+        2048
+      ],
+      "id": "201615bd-69d3-4734-9ae4-490da7b354d1",
+      "name": "Store Gas Price Data",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQdYab6nnmsBSzv",
+          "mode": "list",
+          "cachedResultName": "Risk_Management",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblQdYab6nnmsBSzv"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1584,
+        1424
+      ],
+      "id": "c3fd1b0e-8878-4814-8f04-a9d17bdb0ba2",
+      "name": "Get Current Risk Status",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1808,
+        1184
+      ],
+      "id": "95d89e6e-6d18-475a-893b-f8b95b86a05a",
+      "name": "Merge with Risk Data"
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "ethereum,wrapped-bitcoin"
+            },
+            {
+              "name": "vs_currencies",
+              "value": "usd"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        800
+      ],
+      "id": "0cf609d0-4f74-4323-bf87-ae11dda99075",
+      "name": "Get Crypto Prices"
+    },
+    {
+      "parameters": {
+        "url": "https://api.dexscreener.com/latest/dex/pairs/ethereum/0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        1856
+      ],
+      "id": "c7c92297-e70d-4174-9460-9f76747ca340",
+      "name": "Get Uniswap ETH Price"
+    },
+    {
+      "parameters": {
+        "url": "https://api.1inch.dev/swap/v6.0/1/quote",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "src",
+              "value": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
+            },
+            {
+              "name": "dst",
+              "value": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+            },
+            {
+              "name": "amount",
+              "value": "100000000"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer "
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        1184
+      ],
+      "id": "319c125b-3835-4f44-af71-eac5551654c0",
+      "name": "Get 1inch Quote - WBTC"
+    },
+    {
+      "parameters": {
+        "url": "https://api.1inch.dev/swap/v6.0/1/quote",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "src",
+              "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+            },
+            {
+              "name": "dst",
+              "value": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+            },
+            {
+              "name": "amount",
+              "value": "1000000000000000000"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        992
+      ],
+      "id": "62a5ac35-82a7-4f1c-8b34-e41f6181deb9",
+      "name": "Get 1inch Quote - WETH"
+    },
+    {
+      "parameters": {
+        "url": "https://api.etherscan.io/v2/api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "module",
+              "value": "gastracker"
+            },
+            {
+              "name": "action",
+              "value": "gasoracle"
+            },
+            {
+              "name": "apikey",
+              "value": "R37RV8CUB57THJ6VYURI6R8IRUYSSVNV4Q"
+            },
+            {
+              "name": "chainid",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        2000
+      ],
+      "id": "350f25ce-2017-45fd-884e-5b137abcd3b7",
+      "name": "Get Gas Price"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Paper Trading Execution Engine\nconst arbitrageResult = $json;\n\n// Only proceed if the bot decided to execute\nif (!arbitrageResult.success) {\n  return [{\n    json: {\n      ...arbitrageResult,\n      paperTrade: false,\n      reason: 'Trade not executed by arbitrage logic'\n    }\n  }];\n}\n\n// Simulate trade execution with realistic parameters\nconst tradeAmount = arbitrageResult.riskAdjustedTradeSize || 1000;\nconst buyPrice = arbitrageResult.buyPrice;\nconst sellPrice = arbitrageResult.sellPrice;\nconst gasCost = arbitrageResult.gasCostUsd;\n\n// Calculate token amounts\nconst tokenAmount = tradeAmount / buyPrice;\nconst sellValue = tokenAmount * sellPrice;\nconst netProfit = sellValue - tradeAmount - gasCost;\n\n// Simulate realistic slippage (0.1-0.3% depending on trade size)\nconst slippagePercent = Math.min(0.3, 0.1 + (tradeAmount / 10000) * 0.2);\nconst slippageCost = tradeAmount * (slippagePercent / 100);\nconst realizedNetProfit = netProfit - slippageCost;\n\n// Add execution timestamp and realistic delay\nconst executionDelay = Math.random() * 2000 + 1000; // 1-3 second delay\nconst executedAt = new Date(Date.now() + executionDelay).toISOString();\n\nreturn [{\n  json: {\n    ...arbitrageResult,\n    paperTrade: true,\n    \n    // Execution details\n    tradeAmount: tradeAmount,\n    tokenAmount: parseFloat(tokenAmount.toFixed(8)),\n    slippagePercent: parseFloat(slippagePercent.toFixed(3)),\n    slippageCost: parseFloat(slippageCost.toFixed(2)),\n    realizedNetProfit: parseFloat(realizedNetProfit.toFixed(2)),\n    \n    // Update execution status\n    actualExecutedAt: executedAt,\n    executionStatus: 'completed',\n    paperTradeSuccess: realizedNetProfit > 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        1088
+      ],
+      "id": "527eb482-665c-4225-a83d-12e7635a0323",
+      "name": "Trade Execution"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple Performance Tracker\nconst tradeResult = $json;\n\n// Only process completed paper trades\nif (!tradeResult.paperTrade || tradeResult.executionStatus !== 'completed') {\n  return [{ json: tradeResult }];\n}\n\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    ...tradeResult,\n    \n    // Simple performance metadata\n    performanceDate: today,\n    tradeProfit: tradeResult.realizedNetProfit,\n    isWinningTrade: tradeResult.realizedNetProfit > 0,\n    returnOnInvestment: (tradeResult.realizedNetProfit / tradeResult.tradeAmount) * 100,\n    \n    // Timestamp for sorting\n    performanceTimestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        1088
+      ],
+      "id": "425775f8-5f5f-4d17-8d3d-c11a3abc1760",
+      "name": "Daily Performance Calculator"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "OK-ACCESS-KEY",
+              "value": "={{ $json.headers[\"OK-ACCESS-KEY\"] }}"
+            },
+            {
+              "name": "OK-ACCESS-SIGN",
+              "value": "={{ $json.headers[\"OK-ACCESS-SIGN\"] }}"
+            },
+            {
+              "name": "OK-ACCESS-TIMESTAMP",
+              "value": "={{ $json.headers[\"OK-ACCESS-TIMESTAMP\"] }}"
+            },
+            {
+              "name": "OK-ACCESS-PASSPHRASE",
+              "value": "={{ $json.headers[\"OK-ACCESS-PASSPHRASE\"] }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        608
+      ],
+      "id": "db9c808d-ecfe-4c6b-9549-546eff85bd27",
+      "name": "Get OKX DEX Quote – WETH"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\n\n// Handle OKX response structure\nlet data;\nif (response.code === \"0\" && response.data && Array.isArray(response.data)) {\n  data = response.data[0];\n} else {\n  console.error('Invalid OKX response:', JSON.stringify(response, null, 2));\n  throw new Error('Invalid OKX response structure');\n}\n\nconst toAmount = parseFloat(data.toTokenAmount) / 1e6;   // USDC 6 decimals\nconst fromAmount = parseFloat(data.fromTokenAmount) / 1e18;  // WETH 18 decimals\nconst price = toAmount / fromAmount;\n\nconsole.log(`OKX DEX WETH Price: $${price.toFixed(2)}`);\n\nreturn [{\n  json: {\n    pair: 'ETH/USDC',\n    symbol: 'WETH',\n    exchange: 'OKX DEX',\n    toTokenAmount: data.toTokenAmount,\n    fromTokenAmount: data.fromTokenAmount,\n    price: price.toString(),\n    source: 'okx_dex'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        608
+      ],
+      "id": "9f2f8fc8-5770-48b9-8d2c-76779e66a8f6",
+      "name": "WETH→USDC"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\n\n// Handle OKX response structure\nlet data;\nif (response.code === \"0\" && response.data && Array.isArray(response.data)) {\n  data = response.data[0];\n} else {\n  throw new Error('Invalid OKX response structure');\n}\n\nconst toAmount = parseFloat(data.toTokenAmount) / 1e6;  // USDC 6 decimals\nconst fromAmount = parseFloat(data.fromTokenAmount) / 1e8;  // WBTC 8 decimals\nconst price = toAmount / fromAmount;\n\nconsole.log(`OKX DEX WBTC Price: $${price.toFixed(2)}`);\n\nreturn [{\n  json: {\n    pair: 'WBTC/USDC',\n    symbol: 'WBTC',\n    exchange: 'OKX DEX',\n    toTokenAmount: data.toTokenAmount,\n    fromTokenAmount: data.fromTokenAmount,\n    price: price.toString(),\n    source: 'okx_dex'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        416
+      ],
+      "id": "f3cea792-ea2e-4ea0-8f01-5caf246b9c5d",
+      "name": "WBTC→USDC"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\n// YOUR CREDENTIALS (No Project ID needed!)\nconst API_KEY = '';\nconst SECRET_KEY = '';\nconst PASSPHRASE = '';\n\n// Build request details\nconst timestamp = new Date().toISOString();\nconst method = 'GET';\nconst requestPath = '/api/v5/dex/aggregator/quote';\n\n// WETH\nconst queryString =\n  '?chainId=1'\n  + '&fromTokenAddress=0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'\n  + '&toTokenAddress=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'\n  + '&amount=1000000000000000000';\n\n// Generate signature: timestamp + method + requestPath + queryString\nconst signString = timestamp + method + requestPath + queryString;\nconst signature = crypto\n  .createHmac('sha256', SECRET_KEY)\n  .update(signString)\n  .digest('base64');\n\nconsole.log('=== OKX WETH Authentication ===');\nconsole.log('Timestamp:', timestamp);\nconsole.log('Sign String:', signString);\nconsole.log('Signature:', signature);\n\nreturn [{\n  json: {\n    url: 'https://web3.okx.com' + requestPath + queryString,\n    headers: {\n      'OK-ACCESS-KEY': API_KEY,\n      'OK-ACCESS-SIGN': signature,\n      'OK-ACCESS-TIMESTAMP': timestamp,\n      'OK-ACCESS-PASSPHRASE': PASSPHRASE,\n      'Content-Type': 'application/json'\n    },\n    symbol: 'WETH'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        608
+      ],
+      "id": "678f98a1-558e-49ab-b722-926bebd3224f",
+      "name": "Generate WETH Quote URL with Auth"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\n// YOUR CREDENTIALS (No Project ID needed!)\nconst API_KEY = '';\nconst SECRET_KEY = '';\nconst PASSPHRASE = '';\n\n// Build request details\nconst timestamp = new Date().toISOString();\nconst method = 'GET';\nconst requestPath = '/api/v5/dex/aggregator/quote';\n\n// WBTC (8 decimals)\nconst queryString =\n  '?chainId=1'\n  + '&fromTokenAddress=0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'\n  + '&toTokenAddress=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'\n  + '&amount=100000000';\n\nconst signString = timestamp + method + requestPath + queryString;\nconst signature = crypto\n  .createHmac('sha256', SECRET_KEY)\n  .update(signString)\n  .digest('base64');\n\nconsole.log('=== OKX WBTC Request ===');\nconsole.log('Timestamp:', timestamp);\nconsole.log('URL:', 'https://web3.okx.com' + requestPath + queryString);\nconsole.log('Sign String:', signString);\nconsole.log('Signature:', signature);\n\nreturn [{\n  json: {\n    url: 'https://web3.okx.com' + requestPath + queryString,\n    headers: {\n      'OK-ACCESS-KEY': API_KEY,\n      'OK-ACCESS-SIGN': signature,\n      'OK-ACCESS-TIMESTAMP': timestamp,\n      'OK-ACCESS-PASSPHRASE': PASSPHRASE\n    },\n    symbol: 'WBTC'\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        416
+      ],
+      "id": "2f66a841-8265-4ded-9376-d332188334f0",
+      "name": "Generate WBTC Quote URL with Auth"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "OK-ACCESS-KEY",
+              "value": "={{ $json.headers[\"OK-ACCESS-KEY\"] }}"
+            },
+            {
+              "name": "OK-ACCESS-SIGN",
+              "value": "={{ $json.headers[\"OK-ACCESS-SIGN\"] }}"
+            },
+            {
+              "name": "OK-ACCESS-TIMESTAMP",
+              "value": "={{ $json.headers[\"OK-ACCESS-TIMESTAMP\"] }}"
+            },
+            {
+              "name": "OK-ACCESS-PASSPHRASE",
+              "value": "={{ $json.headers[\"OK-ACCESS-PASSPHRASE\"] }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        416
+      ],
+      "id": "2879907b-e352-4206-b533-7ebb5daf7421",
+      "name": "Get OKX DEX Quote – WBTC"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -208,
+        416
+      ],
+      "id": "7394f0df-dbc8-4edc-ab3b-2122a7323e6a",
+      "name": "Wait",
+      "webhookId": "8af425ea-2bb5-4144-a9b3-da5609994a59"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        16,
+        608
+      ],
+      "id": "cdb52ed8-ba60-4afa-9148-b2d8a120697a",
+      "name": "Wait1",
+      "webhookId": "580b15d6-5079-40f3-8806-d70c2a59019b"
+    },
+    {
+      "parameters": {
+        "jsCode": "const gasResponse = $json;\n\n// Check if we got a valid response\nif (!gasResponse || !gasResponse.result || !gasResponse.result.ProposeGasPrice) {\n  console.error('Invalid Etherscan response:', JSON.stringify(gasResponse, null, 2));\n  \n  // Use default fallback\n  const defaultGasPrice = 35;\n  const ethPriceUsd = 2500;\n  const gasLimit = 200000; // FIXED: Using 200000 instead of 150000\n  const gasCostEth = (defaultGasPrice * gasLimit) / 1e9;\n  const gasCostUsd = gasCostEth * ethPriceUsd;\n  \n  return [{\n    json: {\n      result: { ProposeGasPrice: defaultGasPrice.toString() },\n      timestamp: new Date().toISOString(),\n      gas_price_gwei: defaultGasPrice,\n      eth_price_usd: ethPriceUsd,\n      gas_cost_per_trade: Math.round(gasCostUsd * 100) / 100,\n      network_status: \"API Failed\",\n      profitable_threshold: Math.round((gasCostUsd / 1000) * 100 * 100) / 100\n    }\n  }];\n}\n\n// Parse gas price\nconst currentGasPrice = Math.max(1, Math.ceil(parseFloat(gasResponse.result.ProposeGasPrice)));\n\nconsole.log(`Current gas price: ${currentGasPrice} gwei`);\n\nconst ethPriceUsd = 2500;\nconst gasLimit = 200000; // FIXED: Using 200000\nconst gasCostEth = (currentGasPrice * gasLimit) / 1e9;\nconst gasCostUsd = gasCostEth * ethPriceUsd;\n\n// Determine network status\nlet networkStatus;\nif (currentGasPrice < 20) networkStatus = \"Low\";\nelse if (currentGasPrice < 35) networkStatus = \"Medium\"; \nelse if (currentGasPrice < 50) networkStatus = \"High\";\nelse networkStatus = \"Extreme\";\n\n// Calculate minimum profitable threshold\nconst minTradeSize = 1000;\nconst profitableThreshold = (gasCostUsd / minTradeSize) * 100;\n\nreturn [{\n  json: {\n    result: { \n      ProposeGasPrice: currentGasPrice.toString() \n    },\n    timestamp: new Date().toISOString(),\n    gas_price_gwei: currentGasPrice,\n    eth_price_usd: ethPriceUsd,\n    gas_cost_per_trade: Math.round(gasCostUsd * 100) / 100,\n    network_status: networkStatus,\n    profitable_threshold: Math.round(profitableThreshold * 100) / 100\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        2000
+      ],
+      "id": "05776b49-1fa9-45d5-8666-868fa7a2b715",
+      "name": "Parse Gas Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const priceData = $json;\nconst ethPrice = priceData.ethereum.usd;\nconst btcPrice = priceData['wrapped-bitcoin'].usd;\n\nreturn [\n  {\n    json: {\n      symbol: \"WETH\",\n      pair: \"ETH/USDC\",\n      exchange: \"coingecko\",  // ✅ ADD THIS LINE\n      price: ethPrice,\n      source: \"coingecko\"\n    }\n  },\n  {\n    json: {\n      symbol: \"WBTC\", \n      pair: \"WBTC/USDC\",\n      exchange: \"coingecko\",  // ✅ ADD THIS LINE\n      price: btcPrice,\n      source: \"coingecko\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        800
+      ],
+      "id": "2e47aa9b-2d28-46a3-8a3c-86edd5dc0f28",
+      "name": "Parse CoinGecko Prices"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst response = $json;\nconst dexData = Array.isArray(response) ? response[0] : response;\n\nreturn items.map(item => {\n  const pairInfo = item.json;\n  \n  if (!dexData || !dexData.pair || !dexData.pair.priceUsd) {\n    const basePrice = pairInfo.symbol === 'WETH' ? 2480 : 67800;\n    const variation = (Math.random() - 0.5) * 0.02;\n    const mockPrice = basePrice * (1 + variation);\n    return {\n      json: {\n        pair: pairInfo.pair,\n        symbol: pairInfo.symbol,\n        exchange: \"Uniswap\",\n        price: mockPrice.toString(),\n        source: \"fallback\"\n      }\n    };\n  }\n  \n  // ✅ FIX: Extract symbol from the pair's baseToken\n  const symbol = dexData.pair.baseToken?.symbol || 'WETH';\n  \n  return {\n    json: {\n      pair: `${symbol}/USDC`,\n      symbol: symbol,  // ✅ Use extracted symbol\n      exchange: \"Uniswap\",\n      price: dexData.pair.priceUsd,\n      liquidityUsd: dexData.pair.liquidity?.usd,  // ✅ ADD LIQUIDITY\n      volume24h: dexData.pair.volume?.h24,         // ✅ ADD VOLUME\n      source: \"live\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        1856
+      ],
+      "id": "184db1a2-2030-4cd2-81b5-af19f43d4bda",
+      "name": "Parse Uniswap Price"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process all DEX data and extract SushiSwap prices\nconst dexData = $input.all();\nconst sushiswapResults = [];\n\n// Process each item\nfor (const item of dexData) {\n  const data = item.json;\n  \n  // Only process SushiSwap entries\n  if (data.dexId !== 'sushiswap') continue;\n  \n  const baseSymbol = data.baseToken?.symbol;\n  const quoteSymbol = data.quoteToken?.symbol;\n  \n  // Check if it's a WETH or WBTC pair\n  const isTargetPair = \n    baseSymbol === 'WETH' || baseSymbol === 'WBTC' ||\n    quoteSymbol === 'WETH' || quoteSymbol === 'WBTC';\n  \n  if (!isTargetPair) continue;\n  \n  // Extract price and validate\n  const price = parseFloat(data.priceUsd);\n  if (!price || price <= 0) continue;\n  \n  // Determine primary token for tracking\n  const primarySymbol = ['WETH', 'WBTC'].includes(baseSymbol) ? baseSymbol : 'WBTC';\n  \n  // Build result object\n  sushiswapResults.push({\n    pair: `${baseSymbol}/${quoteSymbol}`,\n    symbol: primarySymbol,\n    exchange: 'SushiSwap',\n    price: Number(price.toFixed(2)),\n    source: 'dexscreener',\n    \n    // Additional useful data\n    liquidityUsd: parseFloat(data.liquidity?.usd || 0),\n    volume24h: parseFloat(data.volume?.h24 || 0),\n    priceChange24h: parseFloat(data.priceChange?.h24 || 0),\n    \n    // Transaction counts\n    txnCount24h: (data.txns?.h24?.buys || 0) + (data.txns?.h24?.sells || 0),\n    \n    // Identifiers\n    pairAddress: data.pairAddress,\n    url: data.url,\n    \n    // Token details\n    baseToken: {\n      symbol: baseSymbol,\n      address: data.baseToken?.address\n    },\n    quoteToken: {\n      symbol: quoteSymbol,\n      address: data.quoteToken?.address\n    }\n  });\n}\n\nconsole.log(`Found ${sushiswapResults.length} SushiSwap pairs`);\nsushiswapResults.forEach(pair => {\n  console.log(`  ${pair.pair}: $${pair.price.toFixed(2)} (Liquidity: $${pair.liquidityUsd.toLocaleString()})`);\n});\n\n// Return as n8n items\nreturn sushiswapResults.map(pair => ({ json: pair }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        1376
+      ],
+      "id": "880a369c-0c07-4f4a-8336-67d23e99737f",
+      "name": "Parse SushiSwap Prices",
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\n\nconsole.log('1inch API Response:', JSON.stringify(response, null, 2));\n\n// Get pair info - adjust this based on your workflow structure\nconst pairInfo = { symbol: 'WETH', pair: 'ETH/USDC' };\n\nlet price = 0;\nlet success = false;\n\ntry {\n  if (response && response.dstAmount) {\n    // 1inch quote calculation\n    const srcAmount = 1000000000000000000; // 1 ETH in wei (18 decimals)\n    const dstAmount = parseFloat(response.dstAmount); // USDT amount (6 decimals)\n    \n    // Convert to actual token amounts\n    const ethAmount = srcAmount / 1e18; // Convert from wei to ETH\n    const usdtAmount = dstAmount / 1e6;  // Convert from USDT decimals to USD\n    \n    price = usdtAmount / ethAmount;\n    success = true;\n    \n    console.log(`1inch calculated WETH price: $${price}`);\n    console.log(`1 ETH gets ${usdtAmount} USDT`);\n  }\n} catch (error) {\n  console.error('1inch processing error:', error);\n}\n\n// Fallback if processing fails\nif (!success || price === 0) {\n  console.log('1inch processing failed, using fallback price');\n  price = 4482; // Close to the actual result\n}\n\nreturn [{\n  json: {\n    pair: pairInfo.pair,\n    symbol: pairInfo.symbol,\n    exchange: \"1inch\",\n    toTokenAmount: response?.dstAmount || \"0\",\n    fromTokenAmount: \"1000000000000000000\",\n    price: price.toString(),\n    source: success ? \"1inch_api\" : \"fallback\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        992
+      ],
+      "id": "60a1ad04-dc6d-4d7b-b757-8f5ffafa7e57",
+      "name": "Parse 1inch WETH Price",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\nconst pairInfo = { symbol: 'WBTC', pair: 'WBTC/USDC' };\n\nlet price = 0;\nlet success = false;\n\ntry {\n  if (response && response.dstAmount) {\n    const srcAmount = 100000000; // 1 WBTC in 8 decimals\n    const dstAmount = parseFloat(response.dstAmount); // USDT amount (6 decimals)\n    \n    const btcAmount = srcAmount / 1e8;  // Convert to BTC\n    const usdtAmount = dstAmount / 1e6; // Convert to USD\n    \n    price = usdtAmount / btcAmount;\n    success = true;\n    \n    console.log(`1inch calculated WBTC price: $${price}`);\n  }\n} catch (error) {\n  console.error('1inch WBTC processing error:', error);\n}\n\nif (!success || price === 0) {\n  price = 116000; // Fallback\n}\n\nreturn [{\n  json: {\n    pair: pairInfo.pair,\n    symbol: pairInfo.symbol,\n    exchange: \"1inch\",\n    toTokenAmount: response?.dstAmount || \"0\",\n    fromTokenAmount: \"100000000\",\n    price: price.toString(),\n    source: success ? \"1inch_api\" : \"fallback\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        1184
+      ],
+      "id": "9a278ef4-28fe-4ad0-837d-b3597559a408",
+      "name": "Parse 1inch WBTC Price",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input: multiple normalized quotes for WETH + WBTC (mixed)\n// Output: only fresh, inlier quotes\n\nconst items = $input.all().map(i => i.json);\nconst now = Date.now();\n\n// 1) drop stale - use expiresAt if available, otherwise fallback to ttlSec\nconst fresh = items.filter(q => q.expiresAt ? (now <= q.expiresAt) : ((now - q.ts) <= q.ttlSec * 1000));\n\n// group by symbol\nconst bySym = fresh.reduce((m, q) => {\n  m[q.symbol] = m[q.symbol] || [];\n  m[q.symbol].push(q);\n  return m;\n}, {});\n\n// helper: IQR range filter\nfunction iqrFilter(quotes) {\n  if (quotes.length <= 2) return quotes;\n  const arr = quotes.map(q => q.price).sort((a,b)=>a-b);\n  const q1 = arr[Math.floor(arr.length*0.25)];\n  const q3 = arr[Math.floor(arr.length*0.75)];\n  const iqr = q3 - q1;\n  const low = q1 - 1.5*iqr;\n  const high = q3 + 1.5*iqr;\n  return quotes.filter(q => q.price >= low && q.price <= high);\n}\n\nconst cleaned = [];\nfor (const sym of Object.keys(bySym)) {\n  const inliers = iqrFilter(bySym[sym]);\n  // also enforce max 5% cross-venue spread sanity\n  if (inliers.length >= 2) {\n    const prices = inliers.map(q=>q.price);\n    const minP = Math.min(...prices), maxP = Math.max(...prices);\n    const spreadPct = (maxP - minP) / minP * 100;\n    if (spreadPct > 5) {\n      // keep the closest cluster (median ±2%)\n      const median = prices.sort((a,b)=>a-b)[Math.floor(prices.length/2)];\n      const band = inliers.filter(q => Math.abs((q.price - median)/median) <= 0.02);\n      cleaned.push(...(band.length ? band : inliers));\n    } else {\n      cleaned.push(...inliers);\n    }\n  } else {\n    cleaned.push(...inliers);\n  }\n}\n\nreturn cleaned.map(q => ({ json: q }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        928
+      ],
+      "id": "a8eeae36-1e3e-4da5-a2f3-66f619d4827b",
+      "name": "Filter Quotes (stale/outliers)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Add simple constant-product price impact + venue fee model\n// impact ≈ trade_usd / (2 * liquidity_usd)\n\nconst TRADE_USD_DEFAULT = 1000;\n\n// fee bps by venue (rough defaults; adjust to your pools)\nconst feeBps = {\n  'Uniswap': 30,     // v2/v3 common pool\n  'SushiSwap': 30,\n  '1inch': 5,        // aggregator fee/est\n  'OKX DEX': 5\n};\n\nconst items = $input.all().map(i => i.json);\n\nconst out = items.map(q => {\n  const tradeUsd = TRADE_USD_DEFAULT;\n  const liq = Number(q.liquidityUsd) || 0;\n\n  // impact only if we have liquidity\n  let impactPct = 0;\n  if (liq > 0) {\n    impactPct = tradeUsd / (2 * liq); // dimensionless\n  }\n\n  const bps = feeBps[q.exchange] ?? 20;\n  const feePct = bps / 10000;\n\n  // Effective prices when buying vs selling (slippage directions differ)\n  const effectiveBuy  = q.price * (1 + impactPct + feePct);\n  const effectiveSell = q.price * (1 - impactPct - feePct);\n\n  return {\n    ...q,\n    tradeUsd,\n    feeBps: bps,\n    impactPct: Number((impactPct*100).toFixed(4)), // for logging %\n    effectiveBuy,\n    effectiveSell\n  };\n});\n\nreturn out.map(x => ({ json: x }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        928
+      ],
+      "id": "6ad8c275-262c-4370-a0df-396750a5d2b4",
+      "name": "Enrich Quotes (impact & fees)"
+    },
+    {
+      "parameters": {
+        "numberInputs": 8
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        240,
+        992
+      ],
+      "id": "f216421c-6f92-4f6d-812f-1089851dc8a8",
+      "name": "Merge All Price Sources",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize ALL quotes in one pass\nconst items = $input.all();\nconst now = Date.now();\n\n// Pre-process Kraken quotes that have 'timestamp' instead of 'ts'\nconst preprocessed = items.map(item => {\n  const data = item.json;\n  if (data.source === 'kraken_spot' && data.timestamp && !data.ts) {\n    return {\n      json: {\n        ...data,\n        ts: new Date(data.timestamp).getTime()\n      }\n    };\n  }\n  return item;\n});\n\n// Use preprocessed items instead of raw items\nconst normalizedInput = preprocessed;\n\nfunction nullableNum(n) {\n  const v = Number(n);\n  return Number.isFinite(v) ? v : null;\n}\n\n// TTL per venue (seconds)\nconst ttlMap = {\n  'Uniswap': 20,\n  'SushiSwap': 20,\n  '1inch': 15,\n  'OKX DEX': 15,\n  'coingecko': 60\n};\n\nconst normalized = normalizedInput.map(item => {\n  const inItem = item.json;\n  \n  // Derive liquidity/volume fields if present\n  const liquidityUsd = nullableNum(inItem.liquidity?.usd ?? inItem.liquidityUsd);\n  const volume24h = nullableNum(inItem.volume?.h24 ?? inItem.volume24h);\n  \n  const ttlSec = ttlMap[inItem.exchange] ?? 30;\n  const expiresAt = now + ttlSec * 1000;\n  \n  // Minimal schema\n  const out = {\n    pair: inItem.pair || (inItem.symbol === 'WETH' ? 'ETH/USDC' : 'WBTC/USDC'),\n    symbol: (inItem.symbol || '').toUpperCase(),\n    exchange: inItem.exchange,\n    route: inItem.exchange === '1inch' || inItem.exchange === 'OKX DEX' ? 'aggregator' : 'pool',\n    price: nullableNum(inItem.price),\n    source: inItem.source || 'unknown',\n    ts: now,\n    ttlSec: ttlSec,\n    expiresAt: expiresAt,\n    latencyMs: nullableNum(inItem.latencyMs),\n    liquidityUsd: liquidityUsd,\n    volume24h: volume24h,\n    toTokenAmount: inItem.toTokenAmount,\n    fromTokenAmount: inItem.fromTokenAmount,\n    url: inItem.url,\n    pairAddress: inItem.pairAddress\n  };\n  \n  // Basic guards\n  if (!out.price || out.price <= 0) {\n    console.warn(`Normalize: invalid price from ${out.exchange}, skipping`);\n    return null;\n  }\n  if (!out.symbol || !/^(WETH|WBTC)$/.test(out.symbol)) {\n    console.warn(`Normalize: unexpected symbol \"${out.symbol}\", skipping`);\n    return null;\n  }\n  \n  // Unique id for debugging\n  out.sourceId = `${out.exchange}:${out.symbol}:${out.ts}`;\n  \n  return out;\n}).filter(item => item !== null); // Remove any failed normalizations\n\nconsole.log(`Normalized ${normalized.length} quotes from ${items.length} sources`);\n\nreturn normalized.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        1088
+      ],
+      "id": "eb4c4e5e-257f-40cd-861c-b7ed7856bc2f",
+      "name": "Normalize All Quotes",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblG0eFbUU08D6DZH",
+          "mode": "list",
+          "cachedResultName": "Gas_Tracker",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblG0eFbUU08D6DZH"
+        },
+        "returnAll": false,
+        "limit": 10,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1136,
+        1520
+      ],
+      "id": "7345111f-41d7-45d9-9eca-be022044c65f",
+      "name": "Get Gas History",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Check if we have enough data\nif (items.length < 3) {\n  console.log('Insufficient historical data for trend analysis');\n  return [{\n    json: {\n      has_trend_data: false,\n      data_points: items.length,\n      message: 'Need at least 3 historical records'\n    }\n  }];\n}\n\n// Extract gas prices\nconst gasPrices = items.map(item => item.json.gas_price_gwei).filter(p => p != null);\nconst gasCosts = items.map(item => item.json.gas_cost_per_trade).filter(c => c != null);\n\n// Calculate moving average\nconst avgGasPrice = gasPrices.reduce((sum, p) => sum + p, 0) / gasPrices.length;\nconst avgGasCost = gasCosts.reduce((sum, c) => sum + c, 0) / gasCosts.length;\n\n// Calculate volatility (standard deviation)\nconst variance = gasPrices.reduce((sum, p) => sum + Math.pow(p - avgGasPrice, 2), 0) / gasPrices.length;\nconst volatility = Math.sqrt(variance);\n\n// Calculate trend (comparing recent vs older)\nconst recentAvg = gasPrices.slice(0, 3).reduce((sum, p) => sum + p, 0) / 3;\nconst olderAvg = gasPrices.slice(-3).reduce((sum, p) => sum + p, 0) / 3;\nconst trendDirection = recentAvg > olderAvg ? 'increasing' : recentAvg < olderAvg ? 'decreasing' : 'stable';\nconst trendStrength = Math.abs(recentAvg - olderAvg) / olderAvg * 100;\n\n// Determine if current conditions are favorable\nconst currentGas = gasPrices[0]; // Most recent\nconst gasVsAverage = ((currentGas - avgGasPrice) / avgGasPrice) * 100;\n\nlet tradingWindow;\nif (currentGas < avgGasPrice - volatility) {\n  tradingWindow = 'Excellent'; // Below average by 1 std dev\n} else if (currentGas < avgGasPrice) {\n  tradingWindow = 'Good'; // Below average\n} else if (currentGas < avgGasPrice + volatility) {\n  tradingWindow = 'Fair'; // Above average but within 1 std dev\n} else {\n  tradingWindow = 'Poor'; // Above average by more than 1 std dev\n}\n\nconsole.log(`Gas Trend Analysis:\n  - Moving Avg: ${avgGasPrice.toFixed(2)} gwei\n  - Current: ${currentGas} gwei (${gasVsAverage.toFixed(1)}% vs avg)\n  - Volatility: ${volatility.toFixed(2)} gwei\n  - Trend: ${trendDirection} (${trendStrength.toFixed(1)}%)\n  - Window: ${tradingWindow}`);\n\nreturn [{\n  json: {\n    has_trend_data: true,\n    data_points: items.length,\n    \n    // Moving averages\n    avg_gas_price_gwei: Number(avgGasPrice.toFixed(2)),\n    avg_gas_cost_usd: Number(avgGasCost.toFixed(2)),\n    \n    // Current vs average\n    current_gas_gwei: currentGas,\n    gas_vs_average_pct: Number(gasVsAverage.toFixed(2)),\n    \n    // Volatility\n    volatility_gwei: Number(volatility.toFixed(2)),\n    volatility_pct: Number((volatility / avgGasPrice * 100).toFixed(2)),\n    \n    // Trend\n    trend_direction: trendDirection,\n    trend_strength_pct: Number(trendStrength.toFixed(2)),\n    \n    // Trading recommendation\n    historical_trading_window: tradingWindow,\n    \n    // Metadata\n    analyzed_at: new Date().toISOString(),\n    lookback_minutes: 50 // Assuming 5-min intervals for 10 records\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        1520
+      ],
+      "id": "0334d3ba-68e4-4875-8114-014fb2aa41fb",
+      "name": "Calculate Gas Trends"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconsole.log('=== DATA ARRIVING AT CALCULATE ARBITRAGE ===');\nconsole.log('Total items:', items.length);\n\n// Check for trend data specifically\nconst trend = items.find(i => i.json?.has_trend_data);\nif (trend) {\n  console.log('✅ Trend data found:', {\n    avg_gas: trend.json.avg_gas_price_gwei,\n    current_gas: trend.json.current_gas_gwei,\n    window: trend.json.historical_trading_window\n  });\n} else {\n  console.log('❌ NO TREND DATA FOUND!');\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        1184
+      ],
+      "id": "02bac3c2-2987-4dc4-8d3b-0273a5db4a6d",
+      "name": "DEBUG",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7ruZHDARaZ6ESm",
+          "mode": "list",
+          "cachedResultName": "ML_Thresholds",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tbl7ruZHDARaZ6ESm"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1360,
+        1712
+      ],
+      "id": "f85eece3-cbe3-464b-8d89-4d28aa4dfb28",
+      "name": "Get Latest ML Threshold",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://s1.ripple.com:51234/",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"method\": \"amm_info\",\n  \"params\": [{\n    \"asset\": {\n      \"currency\": \"XRP\"\n    },\n    \"asset2\": {\n      \"currency\": \"USD\",\n      \"issuer\": \"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq\"\n    },\n    \"ledger_index\": \"validated\"\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        2176
+      ],
+      "id": "c1a8e648-b871-4e78-8611-8e152ba6588f",
+      "name": "Get XRPL Prices"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\n\nconsole.log('📊 === XRPL AMM DATA ===');\n\n// Check for valid response\nif (!response || !response.result || !response.result.amm) {\n  console.log('❌ Invalid XRPL response');\n  return [{\n    json: {\n      exchange: 'XRPL_AMM',\n      pair: 'XRP/USD',\n      symbol: 'XRP',\n      price: null,\n      error: 'Invalid response',\n      source: 'xrpl_native'\n    }\n  }];\n}\n\nconst amm = response.result.amm;\n\n// Extract amounts - XRPL format can vary\nlet xrpAmount = 0;\nlet usdAmount = 0;\n\n// amount is XRP (string with drops)\nif (typeof amm.amount === 'string') {\n  xrpAmount = parseFloat(amm.amount) / 1000000; // Convert drops to XRP\n} else {\n  xrpAmount = parseFloat(amm.amount);\n}\n\n// amount2 is USD (object with value)\nif (amm.amount2 && amm.amount2.value) {\n  usdAmount = parseFloat(amm.amount2.value);\n}\n\n// Calculate price from pool ratio\nconst xrpPrice = usdAmount / xrpAmount;\n\nconsole.log(`XRPL AMM Pool:`);\nconsole.log(`  XRP Reserves: ${xrpAmount.toFixed(2)} XRP`);\nconsole.log(`  USD Reserves: $${usdAmount.toFixed(2)}`);\nconsole.log(`  XRP Price: $${xrpPrice.toFixed(6)}`);\n\nconst liquidityUsd = usdAmount * 2;\n\nreturn [{\n  json: {\n    exchange: 'XRPL_AMM',\n    pair: 'XRP/USD',\n    symbol: 'XRP',\n    price: Number(xrpPrice.toFixed(6)),\n    liquidityUsd: liquidityUsd,\n    xrp_reserves: xrpAmount,\n    usd_reserves: usdAmount,\n    source: 'xrpl_native',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        2176
+      ],
+      "id": "00798494-1d99-466f-9542-973a2ddf5a21",
+      "name": "Parse XRPL Price"
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/simple/price",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "ripple"
+            },
+            {
+              "name": "vs_currencies",
+              "value": "usd"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        2368
+      ],
+      "id": "1cee9168-e6d0-4388-b12c-0df4c69b804d",
+      "name": "Get ETH XRP Price"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\n\nconst xrpPrice = response.ripple?.usd || 0;\n\nconsole.log(`Ethereum XRP Price (via CoinGecko): $${xrpPrice}`);\n\nreturn [{\n  json: {\n    exchange: 'Ethereum',\n    pair: 'XRP/USD',\n    symbol: 'XRP',\n    price: xrpPrice,\n    source: 'coingecko_ethereum'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        2368
+      ],
+      "id": "f9d44a47-34e2-4e00-8c28-dedebad3a364",
+      "name": "Parse ETH XRP Price"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconsole.log('\\n🌉 === XRPL BRIDGE OPPORTUNITY ANALYSIS ===');\n\n// Find XRPL and Ethereum XRP prices\nconst xrplPrice = items.find(i => i.json?.exchange === 'XRPL_AMM');\nconst ethPrice = items.find(i => i.json?.exchange === 'Ethereum' && i.json?.symbol === 'XRP');\n\nif (!xrplPrice || !ethPrice) {\n  console.log('❌ Missing price data for comparison');\n  return [{\n    json: {\n      error: 'Insufficient data',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconst xrplPriceValue = Number(xrplPrice.json.price);\nconst ethPriceValue = Number(ethPrice.json.price);\n\n// Calculate arbitrage opportunities in both directions\nconst buyXRPL_SellETH = {\n  direction: 'XRPL→ETH',\n  buyPrice: xrplPriceValue,\n  sellPrice: ethPriceValue,\n  spreadPercent: ((ethPriceValue - xrplPriceValue) / xrplPriceValue) * 100\n};\n\nconst buyETH_SellXRPL = {\n  direction: 'ETH→XRPL',\n  buyPrice: ethPriceValue,\n  sellPrice: xrplPriceValue,\n  spreadPercent: ((xrplPriceValue - ethPriceValue) / ethPriceValue) * 100\n};\n\n// Determine best direction\nconst bestDirection = buyXRPL_SellETH.spreadPercent > buyETH_SellXRPL.spreadPercent \n  ? buyXRPL_SellETH \n  : buyETH_SellXRPL;\n\nconsole.log(`\\nPrice Comparison:`);\nconsole.log(`  XRPL: $${xrplPriceValue.toFixed(6)}`);\nconsole.log(`  ETH:  $${ethPriceValue.toFixed(6)}`);\nconsole.log(`  Spread: ${bestDirection.spreadPercent.toFixed(2)}% (${bestDirection.direction})`);\n\n// Calculate profitability\nconst tradeSize = 1000; // $1000 trade\nconst bridgeFeePercent = 0.25; // 0.25% bridge fee (typical)\nconst gasEstimate = 2; // $2 for both chains\n\nconst grossProfit = (bestDirection.spreadPercent / 100) * tradeSize;\nconst bridgeCost = (bridgeFeePercent / 100) * tradeSize;\nconst totalCosts = bridgeCost + gasEstimate;\nconst netProfit = grossProfit - totalCosts;\n\nconsole.log(`\\nProfitability Analysis ($${tradeSize} trade):`);\nconsole.log(`  Gross Profit: $${grossProfit.toFixed(2)} (${bestDirection.spreadPercent.toFixed(2)}%)`);\nconsole.log(`  Bridge Fee:   -$${bridgeCost.toFixed(2)} (${bridgeFeePercent}%)`);\nconsole.log(`  Gas Costs:    -$${gasEstimate.toFixed(2)}`);\nconsole.log(`  Net Profit:   $${netProfit.toFixed(2)}`);\n\n// Determine opportunity quality\nlet opportunityQuality = 'None';\nlet wouldExecute = false;\n\nif (netProfit > 15) {\n  opportunityQuality = 'Excellent';\n  wouldExecute = true;\n  console.log('✅ EXCELLENT OPPORTUNITY - Would execute if bridging enabled');\n} else if (netProfit > 8) {\n  opportunityQuality = 'Good';\n  wouldExecute = true;\n  console.log('✅ GOOD OPPORTUNITY - Would execute if bridging enabled');\n} else if (netProfit > 3) {\n  opportunityQuality = 'Poor';\n  wouldExecute = false;\n  console.log('⚠️ FAIR OPPORTUNITY - Marginal profit, would skip');\n} else if (netProfit > 0) {\n  opportunityQuality = 'Poor';\n  wouldExecute = false;\n  console.log('⚠️ POOR OPPORTUNITY - Not worth bridge risk');\n} else {\n  opportunityQuality = 'None';\n  wouldExecute = false;\n  console.log('❌ NO OPPORTUNITY - Negative after costs');\n}\n\n// Calculate what spread would be needed for profitability\nconst minSpreadForProfit = ((totalCosts / tradeSize) * 100).toFixed(2);\nconsole.log(`\\nMinimum spread needed: ${minSpreadForProfit}% (to break even after costs)`);\n\nreturn [{\n  json: {\n    timestamp: new Date().toISOString(),\n    xrpl_xrp_price: xrplPriceValue,\n    eth_xrp_price: ethPriceValue,\n    best_direction: bestDirection.direction,\n    spread_percent: Number(bestDirection.spreadPercent.toFixed(2)),\n    potential_profit_usd: Number(grossProfit.toFixed(2)),\n    bridge_fee_estimate: Number(bridgeCost.toFixed(2)),\n    gas_estimate: gasEstimate,\n    net_profit_after_bridge: Number(netProfit.toFixed(2)),\n    opportunity_quality: opportunityQuality,\n    would_execute: wouldExecute,\n    trade_size_usd: tradeSize,\n    min_spread_needed: Number(minSpreadForProfit),\n    xrpl_liquidity_usd: xrplPrice.json.liquidityUsd || null\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        2272
+      ],
+      "id": "1ef9b13f-23c4-4754-aac7-85661360946b",
+      "name": "Calculate XRPL Opportunity",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblMoau836fPRwhJh",
+          "mode": "list",
+          "cachedResultName": "XRPL_Opportunities",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblMoau836fPRwhJh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "would_execute": "={{ $json.would_execute }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "xrpl_xrp_price": "={{ $json.xrpl_xrp_price }}",
+            "eth_xrp_price": "={{ $json.eth_xrp_price }}",
+            "spread_percent": "={{ $json.spread_percent }}",
+            "potential_profit_usd": "={{ $json.potential_profit_usd }}",
+            "bridge_fee_estimate": "={{ $json.bridge_fee_estimate }}",
+            "net_profit_after_bridge": "={{ $json.net_profit_after_bridge }}\n",
+            "opportunity_quality": "={{ $json.opportunity_quality }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "xrpl_xrp_price",
+              "displayName": "xrpl_xrp_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "eth_xrp_price",
+              "displayName": "eth_xrp_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "spread_percent",
+              "displayName": "spread_percent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "potential_profit_usd",
+              "displayName": "potential_profit_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "bridge_fee_estimate",
+              "displayName": "bridge_fee_estimate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "net_profit_after_bridge",
+              "displayName": "net_profit_after_bridge",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "opportunity_quality",
+              "displayName": "opportunity_quality",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Excellent",
+                  "value": "Excellent"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                },
+                {
+                  "name": "None",
+                  "value": "None"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "would_execute",
+              "displayName": "would_execute",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        2272
+      ],
+      "id": "53163737-496f-401d-b083-a4297445a232",
+      "name": "Store XRPL Opportunity",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -208,
+        2272
+      ],
+      "id": "c6b99403-9383-4ff6-8dbd-dd4da765794e",
+      "name": "Merge XRP Prices"
+    },
+    {
+      "parameters": {
+        "url": "https://api.kraken.com/0/public/Ticker",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pair",
+              "value": "XETHZUSD,XXBTZUSD"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        2528
+      ],
+      "id": "7acb1243-aa78-44b3-84c3-d22b2732dcae",
+      "name": "Get Kraken Prices"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\n\nconsole.log('📊 === KRAKEN PRICES ===');\n\nif (!response.result) {\n  console.log('❌ Invalid Kraken response');\n  return [];\n}\n\nconst results = [];\n\n// Parse ETH price\nif (response.result.XETHZUSD) {\n  const ethData = response.result.XETHZUSD;\n  const ethPrice = parseFloat(ethData.c[0]); // Last trade price\n  const bid = parseFloat(ethData.b[0]);\n  const ask = parseFloat(ethData.a[0]);\n  const volume = parseFloat(ethData.v[1]); // 24h volume in ETH\n  \n  results.push({\n    json: {\n      pair: 'ETH/USD',\n      symbol: 'WETH',\n      exchange: 'Kraken',\n      route: 'cex',\n      price: ethPrice,\n      source: 'kraken_spot',\n      volume24h: volume * ethPrice,\n      bid: bid,\n      ask: ask,\n      spread: ask - bid,\n      timestamp: new Date().toISOString()\n    }\n  });\n  \n  console.log(`Kraken ETH: $${ethPrice.toFixed(2)} (bid/ask: $${bid.toFixed(2)}/$${ask.toFixed(2)})`);\n}\n\n// Parse BTC price\nif (response.result.XXBTZUSD) {\n  const btcData = response.result.XXBTZUSD;\n  const btcPrice = parseFloat(btcData.c[0]);\n  const bid = parseFloat(btcData.b[0]);\n  const ask = parseFloat(btcData.a[0]);\n  const volume = parseFloat(btcData.v[1]);\n  \n  results.push({\n    json: {\n      pair: 'BTC/USD',\n      symbol: 'WBTC',\n      exchange: 'Kraken',\n      route: 'cex',\n      price: btcPrice,\n      source: 'kraken_spot',\n      volume24h: volume * btcPrice,\n      bid: bid,\n      ask: ask,\n      spread: ask - bid,\n      timestamp: new Date().toISOString()\n    }\n  });\n  \n  console.log(`Kraken BTC: $${btcPrice.toFixed(2)} (bid/ask: $${bid.toFixed(2)}/$${ask.toFixed(2)})`);\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        2528
+      ],
+      "id": "ed0e1f78-66a1-49a1-9a34-43e58f70d384",
+      "name": "Parse Kraken Prices"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\n\nconsole.log('\\n⭐ === QUOTE QUALITY SCORING ===');\n\nconst scored = items.map(quote => {\n  let qualityScore = 100; // Start at perfect\n  let qualityReasons = [];\n  \n  // 1. Route type score (CEX > Aggregator > DEX)\n  if (quote.route === 'cex') {\n    qualityScore += 10;\n    qualityReasons.push('CEX: +10');\n  } else if (quote.route === 'aggregator') {\n    qualityScore += 5;\n    qualityReasons.push('Aggregator: +5');\n  }\n  \n  // 2. Liquidity score\n  if (quote.liquidityUsd) {\n    if (quote.liquidityUsd > 50000000) { // $50M+\n      qualityScore += 20;\n      qualityReasons.push('High liquidity: +20');\n    } else if (quote.liquidityUsd > 10000000) { // $10M+\n      qualityScore += 10;\n      qualityReasons.push('Good liquidity: +10');\n    } else if (quote.liquidityUsd < 1000000) { // < $1M\n      qualityScore -= 15;\n      qualityReasons.push('Low liquidity: -15');\n    }\n  }\n  \n  // 3. Volume score\n  if (quote.volume24h) {\n    if (quote.volume24h > 10000000) { // $10M+ volume\n      qualityScore += 15;\n      qualityReasons.push('High volume: +15');\n    } else if (quote.volume24h < 100000) { // < $100K\n      qualityScore -= 10;\n      qualityReasons.push('Low volume: -10');\n    }\n  }\n  \n  // 4. Spread/slippage score (lower is better)\n  if (quote.spread) {\n    const spreadBps = (quote.spread / quote.price) * 10000;\n    if (spreadBps < 5) {\n      qualityScore += 10;\n      qualityReasons.push('Tight spread: +10');\n    } else if (spreadBps > 20) {\n      qualityScore -= 15;\n      qualityReasons.push('Wide spread: -15');\n    }\n  }\n  \n  // 5. Impact score (lower is better)\n  if (quote.impactPct > 1) { // > 1% impact\n    qualityScore -= 20;\n    qualityReasons.push('High impact: -20');\n  } else if (quote.impactPct > 0.5) {\n    qualityScore -= 10;\n    qualityReasons.push('Medium impact: -10');\n  } else if (quote.impactPct < 0.1) {\n    qualityScore += 10;\n    qualityReasons.push('Low impact: +10');\n  }\n  \n  // 6. Source reliability\n  const reliableSources = ['coingecko', 'kraken_spot', 'live', '1inch_api'];\n  if (reliableSources.includes(quote.source)) {\n    qualityScore += 5;\n    qualityReasons.push('Reliable source: +5');\n  }\n  \n  // Cap score between 0-150\n  qualityScore = Math.max(0, Math.min(150, qualityScore));\n  \n  console.log(`${quote.exchange} ${quote.symbol}: Score ${qualityScore} - ${qualityReasons.join(', ')}`);\n  \n  return {\n    ...quote,\n    qualityScore,\n    qualityReasons: qualityReasons.join('; ')\n  };\n});\n\n// Sort by quality (highest first)\nconst sorted = scored.sort((a, b) => b.qualityScore - a.qualityScore);\n\nconsole.log(`\\nTop 3 quotes by quality:`);\nsorted.slice(0, 3).forEach((q, i) => {\n  console.log(`  ${i+1}. ${q.exchange} (${q.symbol}): ${q.qualityScore} pts - $${q.price.toFixed(2)}`);\n});\n\nreturn sorted.map(q => ({ json: q }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        928
+      ],
+      "id": "e7191f1b-4c71-4fe6-a9f0-c0ad62b909bd",
+      "name": "Score Quote Quality"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvphSZ03UMvKaGs",
+          "mode": "list",
+          "cachedResultName": "Opportunities",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblvphSZ03UMvKaGs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "is_profitable": "={{ $json.is_profitable }}",
+            "pair": "={{ $json.pair }}",
+            "buy_exchange": "={{ $json.buy_exchange}}",
+            "buy_price": "={{ $json.buy_price }}",
+            "sell_exchange": "={{ $json.sell_exchange }}",
+            "sell_price": "={{ $json.sell_price }}",
+            "profit_percent": "={{ $json.profit_percent }}",
+            "gas_price": "={{ $json.gas_price }}",
+            "created_at": "={{ $json.created_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "pair",
+              "displayName": "pair",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "buy_exchange",
+              "displayName": "buy_exchange",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sell_exchange",
+              "displayName": "sell_exchange",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "buy_price",
+              "displayName": "buy_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sell_price",
+              "displayName": "sell_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "profit_percent",
+              "displayName": "profit_percent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gas_price",
+              "displayName": "gas_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "is_profitable",
+              "displayName": "is_profitable",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2912,
+        1376
+      ],
+      "id": "7adb9a0a-d4a3-45db-a111-d2970622d423",
+      "name": "Store ALL Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ensure all required fields exist\nconst opportunity = $json;\n\n// Only return if we have valid data\nif (!opportunity.pair) {\n  return []; // Skip invalid entries\n}\n\nreturn [{\n  json: {\n    pair: opportunity.pair,\n    buy_exchange: opportunity.buyExchange || 'Unknown',\n    sell_exchange: opportunity.sellExchange || 'Unknown',\n    buy_price: opportunity.buyPrice || 0,\n    sell_price: opportunity.sellPrice || 0,\n    profit_percent: opportunity.profitPercent || 0,\n    gas_price: opportunity.gasPrice || 0,\n    is_profitable: opportunity.isProfitable || false,\n    created_at: opportunity.executedAt || new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        1376
+      ],
+      "id": "91d63801-057d-40e2-88ab-c967e9f23121",
+      "name": "Prepare Opportunity Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\nconsole.log(`✅ Stored ${$items().length} opportunities to Airtable`);\n$items().forEach(item => {\n  console.log(`  - ${item.json.pair}: ${item.json.profit_percent}% profit`);\n});\nreturn $items();\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3136,
+        1376
+      ],
+      "id": "adb9aaba-fb1c-46e2-9f3f-95ec58aae298",
+      "name": "Monitoring"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Spread Injector for Testing - Add as a node BEFORE Calculate Arbitrage\nconst items = $input.all();\n\n// CONFIGURATION\nconst TEST_MODE = true; // Set to false to pass data through unchanged\nconst SPREAD_PERCENT = 0.25; // Create 0.25% spread (realistic)\n\nif (!TEST_MODE) {\n  console.log('📊 TEST MODE OFF - Using real market data');\n  return items;\n}\n\nconsole.log('🧪 TEST MODE ON - Injecting artificial spreads');\n\nconst modifiedItems = items.map(item => {\n  const data = item.json;\n  \n  // Only modify price quotes with effective prices\n  if (!data.exchange || !data.effectiveBuy || !data.effectiveSell) {\n    return item;\n  }\n  \n  // Create spreads by exchange type\n  let modified = { ...data };\n  \n  if (data.symbol === 'WETH') {\n    // Make OKX DEX cheap to buy from\n    if (data.exchange === 'OKX DEX') {\n      modified.effectiveBuy = data.effectiveBuy * 0.998; // 0.2% cheaper\n    }\n    // Make Uniswap expensive to sell to\n    else if (data.exchange === 'Uniswap') {\n      modified.effectiveSell = data.effectiveSell * 1.002; // 0.2% higher\n    }\n  } else if (data.symbol === 'WBTC') {\n    // Make Kraken cheap to buy from\n    if (data.exchange === 'Kraken') {\n      modified.effectiveBuy = data.effectiveBuy * 0.998;\n    }\n    // Make OKX DEX expensive to sell to\n    else if (data.exchange === 'OKX DEX') {\n      modified.effectiveSell = data.effectiveSell * 1.002;\n    }\n  }\n  \n  return { json: modified };\n});\n\n// Log what we created\nconst wethQuotes = modifiedItems.filter(i => i.json.symbol === 'WETH' && i.json.exchange);\nconst wbtcQuotes = modifiedItems.filter(i => i.json.symbol === 'WBTC' && i.json.exchange);\n\nif (wethQuotes.length > 0) {\n  console.log('WETH test spreads created:');\n  console.log('  - OKX DEX buy price reduced by 0.2%');\n  console.log('  - Uniswap sell price increased by 0.2%');\n  console.log('  - Expected ~0.4% arbitrage opportunity');\n}\n\nif (wbtcQuotes.length > 0) {\n  console.log('WBTC test spreads created:');\n  console.log('  - Kraken buy price reduced by 0.2%');  \n  console.log('  - OKX DEX sell price increased by 0.2%');\n  console.log('  - Expected ~0.4% arbitrage opportunity');\n}\n\nreturn modifiedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        1184
+      ],
+      "id": "8bf217a4-866d-41d4-8b65-c591e046d339",
+      "name": "Test Calculate Arbitrage",
+      "notes": "const TEST_MODE = true; // Set to false to pass data through unchanged\n"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get SushiSwap Price": {
+      "main": [
+        [
+          {
+            "node": "Parse SushiSwap Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Pairs": {
+      "main": [
+        [
+          {
+            "node": "Get Crypto Prices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 1inch Quote - WETH",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get SushiSwap Price",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Uniswap ETH Price",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Gas Price",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate WBTC Quote URL with Auth",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate WETH Quote URL with Auth",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Gas History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 1inch Quote - WBTC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Latest ML Threshold",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get XRPL Prices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get ETH XRP Price",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Kraken Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Arbitrage": {
+      "main": [
+        [
+          {
+            "node": "Trade Execution",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Opportunity Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Get Current Gas Recommendation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Quotes (stale/outliers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current Gas Recommendation": {
+      "main": [
+        [
+          {
+            "node": "Merge with Gas Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Current Risk Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge with Gas Data": {
+      "main": [
+        [
+          {
+            "node": "Merge with Risk Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Current Risk Status": {
+      "main": [
+        [
+          {
+            "node": "Merge with Risk Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge with Risk Data": {
+      "main": [
+        [
+          {
+            "node": "DEBUG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Crypto Prices": {
+      "main": [
+        [
+          {
+            "node": "Parse CoinGecko Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Uniswap ETH Price": {
+      "main": [
+        [
+          {
+            "node": "Parse Uniswap Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 1inch Quote - WBTC": {
+      "main": [
+        [
+          {
+            "node": "Parse 1inch WBTC Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 1inch Quote - WETH": {
+      "main": [
+        [
+          {
+            "node": "Parse 1inch WETH Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Gas Price": {
+      "main": [
+        [
+          {
+            "node": "Parse Gas Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trade Execution": {
+      "main": [
+        [
+          {
+            "node": "Daily Performance Calculator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Performance Calculator": {
+      "main": [
+        [
+          {
+            "node": "Store Trade in Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store Real-Time Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OKX DEX Quote – WETH": {
+      "main": [
+        [
+          {
+            "node": "WETH→USDC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WBTC→USDC": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WETH→USDC": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate WETH Quote URL with Auth": {
+      "main": [
+        [
+          {
+            "node": "Get OKX DEX Quote – WETH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate WBTC Quote URL with Auth": {
+      "main": [
+        [
+          {
+            "node": "Get OKX DEX Quote – WBTC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OKX DEX Quote – WBTC": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "WBTC→USDC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Parse Gas Data": {
+      "main": [
+        [
+          {
+            "node": "Store Gas Price Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Parse CoinGecko Prices": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Parse Uniswap Price": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Parse SushiSwap Prices": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Parse 1inch WETH Price": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Parse 1inch WBTC Price": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Filter Quotes (stale/outliers)": {
+      "main": [
+        [
+          {
+            "node": "Enrich Quotes (impact & fees)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Quotes (impact & fees)": {
+      "main": [
+        [
+          {
+            "node": "Score Quote Quality",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Price Sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize All Quotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize All Quotes": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Gas History": {
+      "main": [
+        [
+          {
+            "node": "Calculate Gas Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Gas Trends": {
+      "main": [
+        [
+          {
+            "node": "Merge with Gas Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "DEBUG": {
+      "main": [
+        [
+          {
+            "node": "Test Calculate Arbitrage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Latest ML Threshold": {
+      "main": [
+        [
+          {
+            "node": "Merge with Gas Data",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Get XRPL Prices": {
+      "main": [
+        [
+          {
+            "node": "Parse XRPL Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get ETH XRP Price": {
+      "main": [
+        [
+          {
+            "node": "Parse ETH XRP Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate XRPL Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Store XRPL Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse XRPL Price": {
+      "main": [
+        [
+          {
+            "node": "Merge XRP Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse ETH XRP Price": {
+      "main": [
+        [
+          {
+            "node": "Merge XRP Prices",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge XRP Prices": {
+      "main": [
+        [
+          {
+            "node": "Calculate XRPL Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Kraken Prices": {
+      "main": [
+        [
+          {
+            "node": "Parse Kraken Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Kraken Prices": {
+      "main": [
+        [
+          {
+            "node": "Merge All Price Sources",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "Score Quote Quality": {
+      "main": [
+        [
+          {
+            "node": "Merge with Gas Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Prepare Opportunity Data": {
+      "main": [
+        [
+          {
+            "node": "Store ALL Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store ALL Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Calculate Arbitrage": {
+      "main": [
+        [
+          {
+            "node": "Calculate Arbitrage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c93cec4c-9327-43de-a41b-2a99cbc04e7f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "MZ8IYu4hGlSRxXBO",
+  "tags": [
+    {
+      "createdAt": "2025-09-11T23:10:08.668Z",
+      "updatedAt": "2025-09-11T23:10:08.668Z",
+      "id": "nd4kRec4rVVtrFKm",
+      "name": "Main"
+    },
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}

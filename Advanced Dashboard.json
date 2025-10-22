@@ -1,0 +1,566 @@
+{
+  "name": "Advanced Dashboard - Github",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "cf5f3281-013b-4e9a-86a2-b2d68a1ae7e0",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -304,
+        208
+      ],
+      "id": "9e40d2a7-00b3-43fe-b759-f7fb8af8d33b",
+      "name": "Dashboard Webhook",
+      "webhookId": "cf5f3281-013b-4e9a-86a2-b2d68a1ae7e0"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor"
+        },
+        "returnAll": false,
+        "limit": 50,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "334b049a-be42-44f7-87e1-8890f4c00a72",
+      "name": "Get Recent Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl7ruZHDARaZ6ESm",
+          "mode": "list",
+          "cachedResultName": "ML_Thresholds"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        128
+      ],
+      "id": "13490d1f-bff1-4019-9161-6a2137ba66fc",
+      "name": "Get Latest ML Threshold",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqnzuGWSvyN5vyn",
+          "mode": "list",
+          "cachedResultName": "Daily_Performance"
+        },
+        "returnAll": false,
+        "limit": 7,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "date",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        240
+      ],
+      "id": "a22eee3f-954b-4844-8d0a-729e34540172",
+      "name": "Get 7-Day Performance",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblv6YYBQI6OIu3vt",
+          "mode": "list",
+          "cachedResultName": "Exchange_Performance"
+        },
+        "returnAll": false,
+        "limit": 10,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "execution_success_rate",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        368
+      ],
+      "id": "bb0698bf-6ee6-470a-a27a-606211c77856",
+      "name": "Get Exchange Rankings",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblMoau836fPRwhJh",
+          "mode": "list",
+          "cachedResultName": "XRPL_Opportunities"
+        },
+        "returnAll": false,
+        "limit": 20,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        480
+      ],
+      "id": "0c980731-c470-4feb-a1e1-8290d268be57",
+      "name": "Get XRPL Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvJjff6pe5s7zNc",
+          "mode": "list",
+          "cachedResultName": "Gas_Optimization"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        608
+      ],
+      "id": "b1cccd75-dbaf-4106-8c17-eb8e5a34aaf9",
+      "name": "Get Gas Optimization",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQdYab6nnmsBSzv",
+          "mode": "list",
+          "cachedResultName": "Risk_Management"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        720
+      ],
+      "id": "34db9ffd-0a32-4aba-a198-50661d1aa18c",
+      "name": "Get Risk Status",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 7
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        304,
+        368
+      ],
+      "id": "82d21af7-dac0-4b43-a7a5-437f6ceb48ec",
+      "name": "Merge All Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fixed Dashboard Data Processing\nconst allData = $input.all();\n// Safely log the structure\nconst firstItem = allData[0]?.json;\nif (Array.isArray(firstItem)) {\n  console.log('Raw input structure (first 2 items):', JSON.stringify(firstItem.slice(0, 2), null, 2));\n} else {\n  console.log('Raw input structure:', JSON.stringify(firstItem, null, 2));\n}\n\n// The input is coming as a single array of mixed records\n// We need to handle this flat structure\nlet allRecords = [];\n\n// Extract all records from the input\nallData.forEach(item => {\n  if (item.json) {\n    if (Array.isArray(item.json)) {\n      allRecords = allRecords.concat(item.json);\n    } else {\n      allRecords.push(item.json);\n    }\n  }\n});\n\nconsole.log(`Total records to process: ${allRecords.length}`);\n\n// Initialize data containers\nlet opportunities = [];\nlet mlThreshold = null;\nlet dailyPerformance = [];\nlet exchangePerformance = [];\nlet xrplOpportunities = [];\nlet gasOptimization = null;\nlet riskStatus = null;\n\n// Process each record and identify its type\nallRecords.forEach(record => {\n  // Real-Time Monitor records (opportunities)\n  if (record.execution_status !== undefined && record.pair !== undefined && record.profit_potential !== undefined) {\n    opportunities.push(record);\n    console.log(`Found opportunity: ${record.pair} - Status: ${record.execution_status}, Profit: ${record.profit_potential}%`);\n  }\n  // ML Threshold record\n  else if (record.optimal_threshold !== undefined && record.confidence !== undefined) {\n    mlThreshold = record;\n    console.log('Found ML threshold data');\n  }\n  // Daily Performance records\n  else if (record.total_opportunites !== undefined && record.date !== undefined) {\n    dailyPerformance.push(record);\n    console.log(`Found daily performance: ${record.date}`);\n  }\n  // Exchange Performance records\n  else if (record.exchange_name !== undefined && record.avg_spread_percentage !== undefined) {\n    exchangePerformance.push(record);\n    console.log(`Found exchange performance: ${record.exchange_name}`);\n  }\n  // XRPL Opportunities\n  else if (record.xrpl_xrp_price !== undefined && record.eth_xrp_price !== undefined) {\n    xrplOpportunities.push(record);\n    console.log('Found XRPL opportunity');\n  }\n  // Gas Optimization\n  else if (record.current_gas_gwei !== undefined && record.execution_window !== undefined && record.recommended_threshold !== undefined) {\n    gasOptimization = record;\n    console.log('Found gas optimization data');\n  }\n  // Risk Management\n  else if (record.risk_status !== undefined && record.total_portfolio_value !== undefined) {\n    riskStatus = record;\n    console.log('Found risk status data');\n  }\n});\n\nconsole.log(`\\nData Summary:\n- Opportunities: ${opportunities.length}\n- ML Threshold: ${mlThreshold ? 'Yes' : 'No'}\n- Daily Performance: ${dailyPerformance.length}\n- Exchange Performance: ${exchangePerformance.length}\n- XRPL Opportunities: ${xrplOpportunities.length}\n- Gas Optimization: ${gasOptimization ? 'Yes' : 'No'}\n- Risk Status: ${riskStatus ? 'Yes' : 'No'}`);\n\n// Calculate 24h metrics\nconst now = new Date();\nconst cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\nconst last24h = opportunities.filter(opp => {\n  if (!opp.timestamp) return false;\n  const oppTime = new Date(opp.timestamp);\n  return oppTime > cutoff24h;\n});\n\nconsole.log(`Opportunities in last 24h: ${last24h.length}`);\n\nconst executed24h = last24h.filter(o => o.execution_status === 'Executed');\nconst totalProfit24h = executed24h.reduce((sum, o) => {\n  const profit = parseFloat(o.realized_profit || o.net_profit_estimate || 0);\n  // Filter out unrealistic values\n  if (Math.abs(profit) > 100000) return sum;\n  return sum + profit;\n}, 0);\n\nconst winningTrades = executed24h.filter(o => {\n  const profit = parseFloat(o.realized_profit || o.net_profit_estimate || 0);\n  return profit > 0;\n});\n\nconst winRate24h = executed24h.length > 0 \n  ? (winningTrades.length / executed24h.length) * 100\n  : 0;\n\nconsole.log(`Executed trades: ${executed24h.length}, Winning: ${winningTrades.length}, Win rate: ${winRate24h}%`);\n\n// ML performance metrics\nconst mlGuidedTrades = opportunities.filter(o => \n  o.execution_status === 'Executed' && \n  o.dynamic_threshold !== undefined\n);\nconst mlSuccess = mlGuidedTrades.filter(o => parseFloat(o.realized_profit || o.net_profit_estimate || 0) > 0).length;\nconst mlWinRate = mlGuidedTrades.length > 0 ? (mlSuccess / mlGuidedTrades.length) * 100 : 0;\n\n// Top exchanges\nconst topExchanges = exchangePerformance\n  .sort((a, b) => (b.execution_success_rate || 0) - (a.execution_success_rate || 0))\n  .slice(0, 5);\n\n// XRPL metrics\nconst xrplProfitable = xrplOpportunities.filter(o => o.would_execute === true || o.would_execute === \"true\").length;\nconst xrplTotal = xrplOpportunities.filter(o => o.net_profit_after_bridge !== undefined).length;\nconst xrplOpportunityRate = xrplTotal > 0 ? (xrplProfitable / xrplTotal) * 100 : 0;\n\n// 7-day trend\nconst profitTrend = dailyPerformance.length >= 2 \n  ? (dailyPerformance[0].total_profit_usd || 0) - (dailyPerformance[dailyPerformance.length - 1].total_profit_usd || 0)\n  : 0;\n\nconst avgDailyProfit = dailyPerformance.length > 0\n  ? dailyPerformance.reduce((sum, d) => sum + (d.total_profit_usd || 0), 0) / dailyPerformance.length\n  : 0;\n\n// ML threshold history\nconst thresholdHistory = mlThreshold ? [\n  { time: '1hr ago', value: (mlThreshold.optimal_threshold * 0.95).toFixed(2) },\n  { time: '30min ago', value: (mlThreshold.optimal_threshold * 0.98).toFixed(2) },\n  { time: 'Now', value: (mlThreshold.optimal_threshold || 0.5).toFixed(2) }\n] : [];\n\n// Prepare dashboard data\nconst dashboardData = {\n  // Core metrics\n  metrics: {\n    profit24h: totalProfit24h.toFixed(2),\n    winRate24h: winRate24h.toFixed(1),\n    totalOpportunities24h: last24h.length,\n    executedTrades24h: executed24h.length,\n    avgDailyProfit: avgDailyProfit.toFixed(2),\n    profitTrend: profitTrend >= 0 ? 'positive' : 'negative',\n    profitTrendValue: Math.abs(profitTrend).toFixed(2),\n    mlWinRate: mlWinRate.toFixed(1),\n    mlGuidedTradesCount: mlGuidedTrades.length,\n    xrplOpportunityRate: xrplOpportunityRate.toFixed(1),\n    xrplProfitableCount: xrplProfitable\n  },\n  \n  // ML data\n  mlData: {\n    currentThreshold: mlThreshold?.optimal_threshold?.toFixed(2) || '0.50',\n    confidence: mlThreshold ? (parseFloat(mlThreshold.confidence) * 100).toFixed(1) : '0',\n    f1Score: mlThreshold && mlThreshold.f1_score ? (parseFloat(mlThreshold.f1_score) * 100).toFixed(1) : '0',\n    trainingSamples: mlThreshold?.training_size || 0,\n    thresholdHistory: thresholdHistory,\n    lastUpdated: mlThreshold?.timestamp || 'N/A'\n  },\n  \n  // Gas optimization\n  gasData: {\n    currentGas: gasOptimization?.current_gas_gwei || 0,\n    executionWindow: gasOptimization?.execution_window || 'Unknown',\n    recommendedThreshold: gasOptimization?.recommended_threshold || 0.5,\n    missedOpportunities: gasOptimization?.missed_opportunities_count || 0,\n    potentialLost: gasOptimization?.potential_profit_lost || 0,\n    nextOptimalWindow: gasOptimization?.next_optimal_window || 'Unknown'\n  },\n  \n  // Risk management\n  riskData: {\n    status: riskStatus?.risk_status || 'Safe',\n    portfolioValue: riskStatus?.total_portfolio_value || 50000,\n    dailyPnl: riskStatus?.daily_pnl || 0,\n    activePositions: riskStatus?.active_positions_count || 0,\n    maxDrawdown: riskStatus?.max_drawdown_percent || 0,\n    haltTrading: riskStatus?.halt_trading || false,\n    riskAdjustedTradeSize: riskStatus?.risk_adjusted_trade_size || 1000\n  },\n  \n  // Exchange rankings\n  topExchanges: topExchanges.map(ex => ({\n    name: ex.exchange_name,\n    successRate: ex.execution_success_rate || 0,\n    avgSpread: ex.avg_spread_percentage || 0,\n    liquidityScore: ex.avg_liquidity_score || 0,\n    reliability: ex.reliability_rating || 'Unknown',\n    bestPair: ex.best_trading_pairs || 'N/A'\n  })),\n  \n  // Recent activity - show all opportunities, not just last 24h for demo\n  recentActivity: opportunities\n    .filter(opp => opp.pair && opp.execution_status) // Only include valid records\n    .slice(0, 10)\n    .map(opp => ({\n      timestamp: opp.timestamp ? new Date(opp.timestamp).toLocaleTimeString() : 'Unknown',\n      pair: opp.pair,\n      status: opp.execution_status,\n      profit: parseFloat(opp.realized_profit || opp.net_profit_estimate || 0).toFixed(2),\n      profitPercent: parseFloat(opp.profit_potential || 0).toFixed(1),\n      reason: opp.skip_reason || 'Executed',\n      threshold: opp.dynamic_threshold || 0,\n      window: opp.execution_window || 'Unknown'\n    })),\n  \n  // Daily performance chart\n  dailyChart: dailyPerformance\n    .filter(d => d.date) // Only include valid records\n    .map(d => ({\n      date: new Date(d.date).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' }),\n      profit: d.total_profit_usd || 0,\n      opportunities: d.total_opportunites || 0,\n      winRate: d.success_rate || 0\n    }))\n    .reverse(),\n  \n  // XRPL data\n  xrplData: xrplOpportunities\n    .filter(x => x.timestamp && x.spread_percent !== undefined) // Only include valid records\n    .slice(0, 5)\n    .map(x => ({\n      timestamp: new Date(x.timestamp).toLocaleTimeString(),\n      spread: x.spread_percent || 0,\n      profit: x.net_profit_after_bridge || 0,\n      quality: x.opportunity_quality || 'Unknown',\n      wouldExecute: x.would_execute || false\n    })),\n  \n  // System status\n  systemStatus: {\n    botActive: true,\n    lastUpdate: new Date().toLocaleTimeString(),\n    dataFreshness: 'Real-time',\n    nextRefresh: '30 seconds'\n  }\n};\n\nconsole.log('\\n=== Final Dashboard Data ===');\nconsole.log(`24H Metrics: ${executed24h.length} executed, $${totalProfit24h.toFixed(2)} profit`);\nconsole.log(`Recent Activity: ${dashboardData.recentActivity.length} items`);\nconsole.log(`Top Exchanges: ${dashboardData.topExchanges.length} exchanges`);\nconsole.log(`XRPL Data: ${dashboardData.xrplData.length} opportunities`);\n\nreturn [{ json: dashboardData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        368
+      ],
+      "id": "31f09647-f3f2-41ae-be2b-519d13e76a8e",
+      "name": "Process Dashboard Data"
+    },
+    {
+      "parameters": {
+        "html": "={{ $json.html }}"
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        368
+      ],
+      "id": "2f11343d-97fd-47ee-88cd-694f89ab0e35",
+      "name": "Generate Advanced Dashboard"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-cache, no-store, must-revalidate"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        912,
+        368
+      ],
+      "id": "a645fbf8-210c-4356-86bb-21c4932a98a9",
+      "name": "Respond with Dashboard"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\n// Generate the advanced dashboard HTML with fixed chart height\nconst html = `\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Advanced Arbitrage Bot Dashboard</title>\n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>\n    <style>\n        * { margin: 0; padding: 0; box-sizing: border-box; }\n        \n        body {\n            font-family: 'Inter', -apple-system, sans-serif;\n            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);\n            min-height: 100vh;\n            color: #f0f2f5;\n            padding: 20px;\n        }\n        \n        .dashboard-header {\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 20px;\n            padding: 30px;\n            margin-bottom: 30px;\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n        }\n        \n        .header-title h1 {\n            font-size: 2.5rem;\n            background: linear-gradient(135deg, #fff, #a8d8ff);\n            -webkit-background-clip: text;\n            -webkit-text-fill-color: transparent;\n            margin-bottom: 10px;\n        }\n        \n        .ml-badge {\n            display: inline-flex;\n            align-items: center;\n            gap: 8px;\n            padding: 8px 16px;\n            background: linear-gradient(135deg, #00d2ff, #3a7bd5);\n            border-radius: 20px;\n            font-weight: 600;\n            animation: pulse 2s infinite;\n        }\n        \n        @keyframes pulse {\n            0%, 100% { opacity: 1; }\n            50% { opacity: 0.8; }\n        }\n        \n        .metrics-grid {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));\n            gap: 20px;\n            margin-bottom: 30px;\n        }\n        \n        .metric-card {\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n            transition: transform 0.3s;\n        }\n        \n        .metric-card:hover {\n            transform: translateY(-5px);\n            background: rgba(255, 255, 255, 0.15);\n        }\n        \n        .metric-label {\n            font-size: 0.9rem;\n            opacity: 0.8;\n            margin-bottom: 8px;\n        }\n        \n        .metric-value {\n            font-size: 2rem;\n            font-weight: 700;\n            margin-bottom: 5px;\n        }\n        \n        .metric-change {\n            font-size: 0.85rem;\n            font-weight: 600;\n        }\n        \n        .positive { color: #4ade80; }\n        .negative { color: #f87171; }\n        .neutral { color: #94a3b8; }\n        \n        .dashboard-grid {\n            display: grid;\n            grid-template-columns: repeat(12, 1fr);\n            gap: 20px;\n            margin-bottom: 30px;\n        }\n        \n        /* FIXED CHART CONTAINER WITH HEIGHT CONSTRAINTS */\n        .chart-container {\n            grid-column: span 8;\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n            position: relative;\n            height: 320px; /* Fixed container height */\n            overflow: hidden; /* Prevent overflow */\n        }\n        \n        .chart-wrapper {\n            position: relative;\n            height: 250px; /* Fixed wrapper height */\n            width: 100%;\n            overflow: hidden; /* Prevent chart overflow */\n        }\n        \n        /* Force canvas to respect height */\n        #performanceChart {\n            max-height: 250px !important;\n            height: 250px !important;\n        }\n        \n        .side-panel {\n            grid-column: span 4;\n        }\n        \n        .ml-panel {\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n            margin-bottom: 20px;\n        }\n        \n        .section-title {\n            font-size: 1.2rem;\n            font-weight: 600;\n            margin-bottom: 15px;\n            padding-bottom: 10px;\n            border-bottom: 1px solid rgba(255, 255, 255, 0.2);\n        }\n        \n        .ml-metrics {\n            display: flex;\n            flex-direction: column;\n            gap: 12px;\n        }\n        \n        .ml-metric-row {\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n        }\n        \n        .ml-metric-label {\n            opacity: 0.8;\n        }\n        \n        .ml-metric-value {\n            font-weight: 600;\n            font-size: 1.1rem;\n        }\n        \n        .confidence-bar {\n            width: 100%;\n            height: 8px;\n            background: rgba(255, 255, 255, 0.1);\n            border-radius: 4px;\n            overflow: hidden;\n            margin-top: 10px;\n        }\n        \n        .confidence-fill {\n            height: 100%;\n            background: linear-gradient(90deg, #3b82f6, #8b5cf6);\n            border-radius: 4px;\n            transition: width 1s ease;\n        }\n        \n        .exchange-rankings {\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n        }\n        \n        .exchange-item {\n            display: grid;\n            grid-template-columns: 2fr 1fr 1fr 1fr;\n            gap: 10px;\n            padding: 12px;\n            margin-bottom: 8px;\n            background: rgba(255, 255, 255, 0.05);\n            border-radius: 10px;\n            align-items: center;\n        }\n        \n        .exchange-name {\n            font-weight: 600;\n        }\n        \n        .reliability-badge {\n            display: inline-block;\n            padding: 4px 8px;\n            border-radius: 6px;\n            font-size: 0.75rem;\n            font-weight: 600;\n            text-transform: uppercase;\n        }\n        \n        .reliability-excellent { background: rgba(74, 222, 128, 0.2); color: #4ade80; }\n        .reliability-good { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }\n        .reliability-fair { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }\n        \n        .xrpl-panel {\n            grid-column: span 12;\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n        }\n        \n        .xrpl-opportunities {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n            gap: 15px;\n            margin-top: 15px;\n        }\n        \n        .xrpl-card {\n            background: rgba(255, 255, 255, 0.05);\n            border-radius: 10px;\n            padding: 15px;\n            text-align: center;\n        }\n        \n        .activity-feed {\n            grid-column: span 12;\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n            max-height: 400px;\n            overflow-y: auto;\n        }\n        \n        .activity-item {\n            display: grid;\n            grid-template-columns: auto 1fr auto auto;\n            gap: 15px;\n            padding: 12px;\n            margin-bottom: 8px;\n            background: rgba(255, 255, 255, 0.05);\n            border-radius: 10px;\n            align-items: center;\n        }\n        \n        .activity-status {\n            width: 10px;\n            height: 10px;\n            border-radius: 50%;\n        }\n        \n        .executed { background: #4ade80; }\n        .skipped { background: #fbbf24; }\n        \n        .gas-optimization {\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n            margin-bottom: 20px;\n        }\n        \n        .window-indicator {\n            display: inline-block;\n            padding: 6px 12px;\n            border-radius: 8px;\n            font-weight: 600;\n            margin-top: 10px;\n        }\n        \n        .window-optimal { background: rgba(74, 222, 128, 0.2); color: #4ade80; }\n        .window-good { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }\n        .window-poor { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }\n        .window-avoid { background: rgba(248, 113, 113, 0.2); color: #f87171; }\n        \n        .risk-panel {\n            background: rgba(255, 255, 255, 0.1);\n            backdrop-filter: blur(10px);\n            border-radius: 15px;\n            padding: 20px;\n            border: 1px solid rgba(255, 255, 255, 0.2);\n        }\n        \n        .risk-status {\n            display: inline-block;\n            padding: 8px 16px;\n            border-radius: 10px;\n            font-weight: 700;\n            font-size: 1.2rem;\n            margin-top: 10px;\n        }\n        \n        .risk-safe { background: rgba(74, 222, 128, 0.2); color: #4ade80; }\n        .risk-warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }\n        .risk-critical { background: rgba(248, 113, 113, 0.2); color: #f87171; }\n        \n        @media (max-width: 1200px) {\n            .dashboard-grid { grid-template-columns: 1fr; }\n            .chart-container, .side-panel, .xrpl-panel, .activity-feed { grid-column: span 1; }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"dashboard-header\">\n        <div class=\"header-title\">\n            <h1>Advanced Arbitrage Bot</h1>\n            <div class=\"ml-badge\">\n                🤖 ML-Powered • Confidence ${data.mlData.confidence}%\n            </div>\n        </div>\n        <div style=\"text-align: right;\">\n            <div style=\"opacity: 0.8; font-size: 0.9rem;\">Portfolio Value</div>\n            <div style=\"font-size: 1.8rem; font-weight: 700;\">$${data.riskData.portfolioValue.toLocaleString()}</div>\n            <div style=\"opacity: 0.6; font-size: 0.8rem;\">Last Update: ${data.systemStatus.lastUpdate}</div>\n        </div>\n    </div>\n    \n    <div class=\"metrics-grid\">\n        <div class=\"metric-card\">\n            <div class=\"metric-label\">24H Profit</div>\n            <div class=\"metric-value ${data.metrics.profit24h >= 0 ? 'positive' : 'negative'}\">\n                $${data.metrics.profit24h}\n            </div>\n            <div class=\"metric-change neutral\">${data.metrics.executedTrades24h} trades executed</div>\n        </div>\n        \n        <div class=\"metric-card\">\n            <div class=\"metric-label\">Win Rate (24H)</div>\n            <div class=\"metric-value\">${data.metrics.winRate24h}%</div>\n            <div class=\"metric-change neutral\">ML-guided: ${data.metrics.mlWinRate}%</div>\n        </div>\n        \n        <div class=\"metric-card\">\n            <div class=\"metric-label\">Opportunities</div>\n            <div class=\"metric-value\">${data.metrics.totalOpportunities24h}</div>\n            <div class=\"metric-change neutral\">Last 24 hours</div>\n        </div>\n        \n        <div class=\"metric-card\">\n            <div class=\"metric-label\">7-Day Average</div>\n            <div class=\"metric-value ${data.metrics.profitTrend === 'positive' ? 'positive' : 'negative'}\">\n                $${data.metrics.avgDailyProfit}\n            </div>\n            <div class=\"metric-change ${data.metrics.profitTrend === 'positive' ? 'positive' : 'negative'}\">\n                ${data.metrics.profitTrend === 'positive' ? '↑' : '↓'} $${data.metrics.profitTrendValue}\n            </div>\n        </div>\n        \n        <div class=\"metric-card\">\n            <div class=\"metric-label\">XRPL Bridge</div>\n            <div class=\"metric-value\">${data.metrics.xrplOpportunityRate}%</div>\n            <div class=\"metric-change neutral\">${data.metrics.xrplProfitableCount} profitable</div>\n        </div>\n        \n        <div class=\"metric-card\">\n            <div class=\"metric-label\">Gas Price</div>\n            <div class=\"metric-value\">${data.gasData.currentGas} gwei</div>\n            <div class=\"metric-change neutral\">Window: ${data.gasData.executionWindow}</div>\n        </div>\n    </div>\n    \n    <div class=\"dashboard-grid\">\n        <div class=\"chart-container\">\n            <div class=\"section-title\">7-Day Performance Trend</div>\n            <div class=\"chart-wrapper\">\n                <canvas id=\"performanceChart\"></canvas>\n            </div>\n        </div>\n        \n        <div class=\"side-panel\">\n            <div class=\"ml-panel\">\n                <div class=\"section-title\">ML Optimization</div>\n                <div class=\"ml-metrics\">\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">Current Threshold</span>\n                        <span class=\"ml-metric-value\">${data.mlData.currentThreshold}%</span>\n                    </div>\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">F1 Score</span>\n                        <span class=\"ml-metric-value\">${data.mlData.f1Score}%</span>\n                    </div>\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">Training Samples</span>\n                        <span class=\"ml-metric-value\">${data.mlData.trainingSamples}</span>\n                    </div>\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">ML Trades</span>\n                        <span class=\"ml-metric-value\">${data.metrics.mlGuidedTradesCount}</span>\n                    </div>\n                </div>\n                <div class=\"confidence-bar\">\n                    <div class=\"confidence-fill\" style=\"width: ${data.mlData.confidence}%;\"></div>\n                </div>\n            </div>\n            \n            <div class=\"gas-optimization\">\n                <div class=\"section-title\">Gas Optimization</div>\n                <div class=\"ml-metrics\">\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">Threshold</span>\n                        <span class=\"ml-metric-value\">${data.gasData.recommendedThreshold}%</span>\n                    </div>\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">Missed Opportunities</span>\n                        <span class=\"ml-metric-value\">${data.gasData.missedOpportunities}</span>\n                    </div>\n                    <div class=\"ml-metric-row\">\n                        <span class=\"ml-metric-label\">Potential Lost</span>\n                        <span class=\"ml-metric-value\">$${data.gasData.potentialLost}</span>\n                    </div>\n                </div>\n                <div class=\"window-indicator window-${data.gasData.executionWindow.toLowerCase()}\">\n                    ${data.gasData.executionWindow} Trading Window\n                </div>\n            </div>\n        </div>\n        \n        <div class=\"exchange-rankings\">\n            <div class=\"section-title\">Exchange Performance Rankings</div>\n            ${data.topExchanges.map((ex, i) => `\n                <div class=\"exchange-item\">\n                    <div>\n                        <span class=\"exchange-name\">${i + 1}. ${ex.name}</span>\n                        <div class=\"reliability-badge reliability-${ex.reliability.toLowerCase()}\">\n                            ${ex.reliability}\n                        </div>\n                    </div>\n                    <div>${ex.successRate}%</div>\n                    <div>${ex.avgSpread}%</div>\n                    <div style=\"opacity: 0.7; font-size: 0.9rem;\">${ex.bestPair}</div>\n                </div>\n            `).join('')}\n        </div>\n        \n        <div class=\"risk-panel\">\n            <div class=\"section-title\">Risk Management</div>\n            <div class=\"ml-metrics\">\n                <div class=\"ml-metric-row\">\n                    <span class=\"ml-metric-label\">Daily P&L</span>\n                    <span class=\"ml-metric-value ${data.riskData.dailyPnl >= 0 ? 'positive' : 'negative'}\">\n                        $${data.riskData.dailyPnl}\n                    </span>\n                </div>\n                <div class=\"ml-metric-row\">\n                    <span class=\"ml-metric-label\">Active Positions</span>\n                    <span class=\"ml-metric-value\">${data.riskData.activePositions}</span>\n                </div>\n                <div class=\"ml-metric-row\">\n                    <span class=\"ml-metric-label\">Trade Size</span>\n                    <span class=\"ml-metric-value\">$${data.riskData.riskAdjustedTradeSize}</span>\n                </div>\n            </div>\n            <div class=\"risk-status risk-${data.riskData.status.toLowerCase()}\">\n                Risk Status: ${data.riskData.status}\n            </div>\n        </div>\n        \n        <div class=\"xrpl-panel\">\n            <div class=\"section-title\">XRPL Bridge Opportunities</div>\n            <div class=\"xrpl-opportunities\">\n                ${data.xrplData.map(x => `\n                    <div class=\"xrpl-card\">\n                        <div style=\"opacity: 0.7; font-size: 0.8rem;\">${x.timestamp}</div>\n                        <div style=\"font-size: 1.5rem; font-weight: 700; margin: 8px 0;\">\n                            ${x.spread}%\n                        </div>\n                        <div class=\"${x.profit >= 0 ? 'positive' : 'negative'}\">\n                            $${x.profit}\n                        </div>\n                        <div class=\"reliability-badge reliability-${x.quality.toLowerCase()}\" style=\"margin-top: 8px;\">\n                            ${x.quality}\n                        </div>\n                    </div>\n                `).join('')}\n            </div>\n        </div>\n        \n        <div class=\"activity-feed\">\n            <div class=\"section-title\">Recent Activity Feed</div>\n            ${data.recentActivity.map(a => `\n                <div class=\"activity-item\">\n                    <div class=\"activity-status ${a.status.toLowerCase()}\"></div>\n                    <div>\n                        <div style=\"font-weight: 600;\">${a.pair}</div>\n                        <div style=\"opacity: 0.7; font-size: 0.85rem;\">${a.reason}</div>\n                    </div>\n                    <div class=\"${parseFloat(a.profit) >= 0 ? 'positive' : 'negative'}\">\n                        $${a.profit}\n                    </div>\n                    <div style=\"opacity: 0.6; font-size: 0.85rem;\">${a.timestamp}</div>\n                </div>\n            `).join('')}\n        </div>\n    </div>\n    \n    <script>\n        // Performance Chart with FIXED HEIGHT\n        const ctx = document.getElementById('performanceChart').getContext('2d');\n        const chartData = ${JSON.stringify(data.dailyChart)};\n        \n        // FIX 1: Set canvas height before creating chart\n        const canvas = document.getElementById('performanceChart');\n        canvas.style.maxHeight = '250px';\n        canvas.style.height = '250px';\n        \n        // Create the chart\n        const chart = new Chart(ctx, {\n            type: 'line',\n            data: {\n                labels: chartData.map(d => d.date),\n                datasets: [{\n                    label: 'Daily Profit',\n                    data: chartData.map(d => d.profit),\n                    borderColor: '#3b82f6',\n                    backgroundColor: 'rgba(59, 130, 246, 0.1)',\n                    tension: 0.4,\n                    fill: true\n                }]\n            },\n            options: {\n                responsive: true,\n                maintainAspectRatio: false,\n                interaction: {\n                    mode: 'index',\n                    intersect: false\n                },\n                plugins: {\n                    legend: {\n                        display: false\n                    }\n                },\n                scales: {\n                    y: {\n                        beginAtZero: true,\n                        grid: {\n                            color: 'rgba(255, 255, 255, 0.1)'\n                        },\n                        ticks: {\n                            color: 'rgba(255, 255, 255, 0.7)',\n                            callback: function(value) {\n                                return '$' + value;\n                            }\n                        }\n                    },\n                    x: {\n                        grid: {\n                            color: 'rgba(255, 255, 255, 0.1)'\n                        },\n                        ticks: {\n                            color: 'rgba(255, 255, 255, 0.7)'\n                        }\n                    }\n                }\n            }\n        });\n        \n        // FIX 2: Force canvas to stay at fixed height using ResizeObserver\n        const resizeObserver = new ResizeObserver(entries => {\n            canvas.style.height = '250px';\n            canvas.style.maxHeight = '250px';\n        });\n        resizeObserver.observe(canvas);\n        \n        // FIX 3: Additional safeguard - reset height after chart updates\n        setInterval(() => {\n            if (canvas.style.height !== '250px') {\n                canvas.style.height = '250px';\n                canvas.style.maxHeight = '250px';\n            }\n        }, 1000);\n        \n        // Auto-refresh every 30 seconds\n        setTimeout(() => location.reload(), 30000);\n    </script>\n</body>\n</html>\n`;\n\nreturn { json: { html } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        160
+      ],
+      "id": "263cdaa0-64bf-4eaa-a7be-f18cfd8980c8",
+      "name": "Generate HTML"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Dashboard Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Opportunities",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Latest ML Threshold",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 7-Day Performance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Exchange Rankings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get XRPL Opportunities",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Gas Optimization",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Risk Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Latest ML Threshold": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get 7-Day Performance": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Get Exchange Rankings": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Get XRPL Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Get Gas Optimization": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Get Risk Status": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Merge All Data": {
+      "main": [
+        [
+          {
+            "node": "Process Dashboard Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Dashboard Data": {
+      "main": [
+        [
+          {
+            "node": "Generate HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond with Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7dff2990-1edf-4128-be10-d57bddb8ca0a",
+  "meta": {
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "Kx1M3LPsH5OzW1FE",
+  "tags": [
+    {
+      "name": "Front End",
+      "id": "YMrIMgWwd7BGaBlk",
+      "createdAt": "2025-10-22T18:57:02.893Z",
+      "updatedAt": "2025-10-22T18:57:02.893Z"
+    },
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}

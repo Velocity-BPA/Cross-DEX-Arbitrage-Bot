@@ -1,0 +1,346 @@
+{
+  "name": "Gas Threshold Optimizer - Github",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -176
+      ],
+      "id": "b4fdd9c4-108b-4882-afbc-a4345d586892",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblTi1hnwjHoJIEG9"
+        },
+        "filterByFormula": "timestamp >= DATEADD(NOW(), -24, 'hours')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        -272
+      ],
+      "id": "89e23d8a-e0a1-4d21-9e9a-8742af8e96f8",
+      "name": "Get Recent Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        -176
+      ],
+      "id": "5c1d3a5e-8c08-4bff-8991-b77fc5ab622a",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dynamic Gas Threshold Optimization - Improved\nconst allInputData = $input.all();\n\n// Extract recent gas data and opportunities\nlet gasData = [];\nlet opportunities = [];\n\nallInputData.forEach(item => {\n  if (item.json) {\n    if (Array.isArray(item.json)) {\n      item.json.forEach(record => {\n        // Gas tracker data\n        if (record.gas_price_gwei && record.timestamp) {\n          gasData.push(record);\n        }\n        // Real-time monitor data\n        if (record.opportunity_type && record.gas_cost_usd) {\n          opportunities.push(record);\n        }\n      });\n    }\n  }\n});\n\nconsole.log(`Analyzing ${gasData.length} gas records and ${opportunities.length} opportunities`);\n\n// Current gas analysis\nconst currentGas = gasData.length > 0 ? gasData[gasData.length - 1] : null;\nconst currentGasPrice = currentGas ? parseFloat(currentGas.gas_price_gwei) : 35;\n\n// Calculate gas trend\nconst recentGasPrices = gasData.slice(-6).map(g => parseFloat(g.gas_price_gwei));\nconst gasTrend = recentGasPrices.length >= 2 \n  ? recentGasPrices[recentGasPrices.length - 1] - recentGasPrices[0]\n  : 0;\n\n// Analyze missed opportunities\nconst recentOpportunities = opportunities.filter(opp => {\n  try {\n    const oppTime = new Date(opp.timestamp);\n    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000); // Last 2 hours\n    return oppTime > cutoff;\n  } catch {\n    return false;\n  }\n});\n\nconst missedOpportunities = recentOpportunities.filter(opp => \n  opp.execution_status === 'Skipped' && \n  (opp.skip_reason || '').toLowerCase().includes('gas')\n);\n\nconst potentialProfitLost = missedOpportunities.reduce((sum, opp) => \n  sum + Math.max(0, parseFloat(opp.net_profit_estimate || 0)), 0\n);\n\n// Calculate optimal threshold based on recent patterns\nconst profitableOpportunities = recentOpportunities.filter(opp => \n  parseFloat(opp.profit_potential || 0) > 0\n);\n\nconst avgOpportunityProfit = profitableOpportunities.length > 0\n  ? profitableOpportunities.reduce((sum, opp) => \n      sum + parseFloat(opp.profit_potential || 0), 0\n    ) / profitableOpportunities.length\n  : 1.0;\n\n// Dynamic threshold calculation - IMPROVED\nlet recommendedThreshold;\nif (currentGasPrice < 20) {\n  recommendedThreshold = Math.max(0.2, avgOpportunityProfit * 0.3);\n} else if (currentGasPrice < 35) {\n  recommendedThreshold = Math.max(0.4, avgOpportunityProfit * 0.5);\n} else if (currentGasPrice < 50) {\n  recommendedThreshold = Math.max(0.6, avgOpportunityProfit * 0.7);\n} else {\n  recommendedThreshold = Math.max(1.0, avgOpportunityProfit * 0.9);\n}\n\n// Execution window determination\nlet executionWindow;\nif (currentGasPrice < 20 && gasTrend <= 0) {\n  executionWindow = 'Optimal';\n} else if (currentGasPrice < 35 && gasTrend <= 2) {\n  executionWindow = 'Good';\n} else if (currentGasPrice < 50) {\n  executionWindow = 'Poor';\n} else {\n  executionWindow = 'Avoid';\n}\n\n// Predict next optimal window\nconst avgGasPrice = gasData.length > 0 \n  ? gasData.reduce((sum, g) => sum + parseFloat(g.gas_price_gwei), 0) / gasData.length\n  : 30;\n\nconst hoursUntilOptimal = currentGasPrice > avgGasPrice \n  ? Math.min(8, Math.max(1, (currentGasPrice - 20) / 5))\n  : 0;\n\nconst nextOptimalWindow = new Date(Date.now() + hoursUntilOptimal * 60 * 60 * 1000);\n\n// Generate result\nconst result = {\n  timestamp: new Date().toISOString(),\n  current_gas_gwei: currentGasPrice,\n  recommended_threshold: Math.round(recommendedThreshold * 100) / 100,\n  execution_window: executionWindow,\n  missed_opportunities_count: missedOpportunities.length,\n  potential_profit_lost: Math.round(potentialProfitLost * 100) / 100,\n  next_optimal_window: nextOptimalWindow.toISOString()\n};\n\nconsole.log(\"Gas optimization result:\", JSON.stringify(result, null, 2));\nreturn [{ json: result }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -176
+      ],
+      "id": "ed0ee5b1-f870-4848-b386-64c0d59886b7",
+      "name": "Gas Optimization Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvJjff6pe5s7zNc",
+          "mode": "list",
+          "cachedResultName": "Gas_Optimization",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblvJjff6pe5s7zNc"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "current_gas_gwei": "={{ $json.current_gas_gwei }}",
+            "recommended_threshold": "={{ $json.recommended_threshold }}",
+            "execution_window": "={{ $json.execution_window }}",
+            "missed_opportunities_count": "={{ $json.missed_opportunities_count }}",
+            "potential_profit_lost": "={{ $json.potential_profit_lost }}",
+            "next_optimal_window": "={{ $json.next_optimal_window }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "current_gas_gwei",
+              "displayName": "current_gas_gwei",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recommended_threshold",
+              "displayName": "recommended_threshold",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_window",
+              "displayName": "execution_window",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Optimal",
+                  "value": "Optimal"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                },
+                {
+                  "name": "Avoid",
+                  "value": "Avoid"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "missed_opportunities_count",
+              "displayName": "missed_opportunities_count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "potential_profit_lost",
+              "displayName": "potential_profit_lost",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "next_optimal_window",
+              "displayName": "next_optimal_window",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        896,
+        -176
+      ],
+      "id": "0689d089-8bce-43ae-b392-d34cde7491ee",
+      "name": "Store Gas Optimization",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblG0eFbUU08D6DZH",
+          "mode": "list",
+          "cachedResultName": "Gas_Tracker",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblG0eFbUU08D6DZH"
+        },
+        "filterByFormula": "timestamp >= DATEADD(NOW(), -24, 'hours')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        -80
+      ],
+      "id": "2e559088-4232-4d30-850d-115eaa882099",
+      "name": "Search Gas Records",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search Gas Records",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Recent Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Gas Optimization Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gas Optimization Analysis": {
+      "main": [
+        [
+          {
+            "node": "Store Gas Optimization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Gas Records": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bb18e246-eadb-4d33-ae57-3cab87d12290",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "QBCldOSyucSXUUaG",
+  "tags": [
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}

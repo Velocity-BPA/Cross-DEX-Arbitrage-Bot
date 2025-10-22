@@ -1,0 +1,408 @@
+{
+  "name": "Exchange Performance Analyzer - Github",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */4 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -32
+      ],
+      "id": "9491f483-809a-4e63-b888-7000b7a06f77",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTi1hnwjHoJIEG9",
+          "mode": "list",
+          "cachedResultName": "Real_Time_Monitor",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblTi1hnwjHoJIEG9"
+        },
+        "filterByFormula": "timestamp >= DATEADD(NOW(), -4, 'hours')",
+        "returnAll": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        -128
+      ],
+      "id": "bc2f2d84-5fc3-4a77-8964-4fe5f541855e",
+      "name": "Get Recent Opportunities",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblG0eFbUU08D6DZH",
+          "mode": "list",
+          "cachedResultName": "Gas_Tracker",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblG0eFbUU08D6DZH"
+        },
+        "filterByFormula": "timestamp >= DATEADD(NOW(), -4, 'hours')",
+        "returnAll": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        64
+      ],
+      "id": "b554a63b-903a-49ab-bbc3-b6e4bd454a59",
+      "name": "Get Recent Gas Data",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Exchange Performance Analysis - Fixed calculations\nconst allInputData = $input.all();\n\n// Extract data from inputs\nlet opportunities = [];\nlet gasData = [];\n\nallInputData.forEach(item => {\n  if (item.json) {\n    if (Array.isArray(item.json)) {\n      item.json.forEach(record => {\n        // Real_Time_Monitor data\n        if (record.buy_exchange && record.sell_exchange) {\n          opportunities.push(record);\n        }\n        // Gas_Tracker data\n        if (record.gas_price_gwei) {\n          gasData.push(record);\n        }\n      });\n    } else {\n      if (item.json.buy_exchange && item.json.sell_exchange) {\n        opportunities.push(item.json);\n      }\n      if (item.json.gas_price_gwei) {\n        gasData.push(item.json);\n      }\n    }\n  }\n});\n\nconsole.log(`Analyzing ${opportunities.length} opportunities and ${gasData.length} gas records`);\n\n// Get unique exchanges\nconst exchanges = new Set();\nopportunities.forEach(opp => {\n  if (opp.buy_exchange && opp.buy_exchange !== 'N/A') exchanges.add(opp.buy_exchange);\n  if (opp.sell_exchange && opp.sell_exchange !== 'N/A') exchanges.add(opp.sell_exchange);\n});\n\n// Calculate average gas cost\nconst avgGasCost = gasData.length > 0 \n  ? gasData.reduce((sum, gas) => sum + (parseFloat(gas.gas_cost_per_trade) || 0), 0) / gasData.length \n  : 10; // Default $10\n\n// Analyze each exchange\nconst exchangeResults = [];\n\nexchanges.forEach(exchangeName => {\n  // Find opportunities involving this exchange\n  const exchangeOpportunities = opportunities.filter(opp => \n    opp.buy_exchange === exchangeName || opp.sell_exchange === exchangeName\n  );\n  \n  if (exchangeOpportunities.length === 0) return;\n  \n  console.log(`\\n=== Analyzing ${exchangeName} ===`);\n  console.log(`Total opportunities: ${exchangeOpportunities.length}`);\n  \n  // Calculate average spread (only for profitable opportunities)\n  const spreads = exchangeOpportunities\n    .map(opp => parseFloat(opp.profit_potential) || 0)\n    .filter(spread => spread > 0);\n  \n  const avgSpread = spreads.length > 0 \n    ? spreads.reduce((sum, spread) => sum + spread, 0) / spreads.length \n    : 0;\n  \n  // Calculate opportunity frequency (per hour)\n  const timeSpanHours = 4; // Last 4 hours of data\n  const opportunityFrequency = exchangeOpportunities.length / timeSpanHours;\n  \n  // FIXED: Calculate execution success rate correctly\n  const totalOpportunities = exchangeOpportunities.length;\n  const executedOpportunities = exchangeOpportunities.filter(opp => \n    opp.execution_status === 'Executed'\n  ).length;\n  \n  // Calculate as percentage, capped at 100%\n  const executionRate = totalOpportunities > 0 \n    ? Math.min(100, (executedOpportunities / totalOpportunities) * 100)\n    : 0;\n  \n  console.log(`Executed: ${executedOpportunities} / Total: ${totalOpportunities} = ${executionRate}%`);\n  \n  // Calculate gas efficiency\n  const profitableOpps = exchangeOpportunities.filter(opp => \n    parseFloat(opp.net_profit_estimate) > 0\n  );\n  \n  const avgNetProfit = profitableOpps.length > 0\n    ? profitableOpps.reduce((sum, opp) => \n        sum + parseFloat(opp.net_profit_estimate), 0\n      ) / profitableOpps.length\n    : 0;\n  \n  const avgGasEfficiency = avgGasCost > 0 \n    ? (avgNetProfit / avgGasCost) \n    : 0;\n  \n  // Find best trading pairs\n  const pairCounts = {};\n  exchangeOpportunities.forEach(opp => {\n    if (opp.pair) {\n      pairCounts[opp.pair] = (pairCounts[opp.pair] || 0) + 1;\n    }\n  });\n  \n  const bestPair = Object.keys(pairCounts).length > 0 \n    ? Object.keys(pairCounts).reduce((best, pair) => \n        pairCounts[pair] > (pairCounts[best] || 0) ? pair : best, \n        Object.keys(pairCounts)[0])\n    : 'ETH/USDC';\n  \n  // Calculate reliability rating based on real metrics\n  let reliabilityRating;\n  if (executionRate >= 70 && avgSpread >= 1.0) {\n    reliabilityRating = 'Excellent';\n  } else if (executionRate >= 50 && avgSpread >= 0.5) {\n    reliabilityRating = 'Good';\n  } else if (executionRate >= 20 && avgSpread >= 0.2) {\n    reliabilityRating = 'Fair';\n  } else {\n    reliabilityRating = 'Poor';\n  }\n  \n  // Liquidity score (simplified calculation)\n  const liquidityScore = Math.min(100, Math.max(10, \n    50 + (avgSpread * 10) + (opportunityFrequency * 5)\n  ));\n  \n  const result = {\n    exchange_name: exchangeName,\n    avg_spread_percentage: Math.round(avgSpread * 100) / 100,\n    opportunity_frequency: Math.round(opportunityFrequency * 10) / 10,\n    avg_liquidity_score: Math.round(liquidityScore),\n    execution_success_rate: Math.round(executionRate * 100) / 100,\n    best_trading_pairs: bestPair,\n    avg_gas_efficiency: Math.round(avgGasEfficiency * 100) / 100,\n    reliability_rating: reliabilityRating,\n    last_analyzed: new Date().toISOString()\n  };\n  \n  exchangeResults.push(result);\n  console.log(`Final result:`, JSON.stringify(result, null, 2));\n});\n\nconsole.log(`\\n=== SUMMARY ===`);\nconsole.log(`Generated analysis for ${exchangeResults.length} exchanges`);\n\n// Return results for each exchange\nreturn exchangeResults.map(result => ({ json: result }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -32
+      ],
+      "id": "02610fd8-0106-4eb9-af2c-e8d5edae1c3c",
+      "name": "Exchange Performance Analysis"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        -32
+      ],
+      "id": "2b845427-aab8-4cd5-b297-fbca9788141b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        896,
+        -32
+      ],
+      "id": "91708016-fc82-4694-9a83-4b9b2108cda8",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appybuVA6JzvODuVt",
+          "mode": "list",
+          "cachedResultName": "Arbitrage Bot",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblv6YYBQI6OIu3vt",
+          "mode": "list",
+          "cachedResultName": "Exchange_Performance",
+          "cachedResultUrl": "https://airtable.com/appybuVA6JzvODuVt/tblv6YYBQI6OIu3vt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "exchange_name": "={{ $json.exchange_name }}",
+            "avg_spread_percentage": "={{ $json.avg_spread_percentage }}",
+            "opportunity_frequency": "={{ $json.opportunity_frequency }}",
+            "avg_liquidity_score": "={{ $json.avg_liquidity_score }}",
+            "execution_success_rate": "={{ $json.execution_success_rate }}",
+            "best_trading_pairs": "={{ $json.best_trading_pairs }}",
+            "avg_gas_efficiency": "={{ $json.avg_gas_efficiency }}",
+            "reliability_rating": "={{ $json.reliability_rating }}",
+            "last_analyzed": "={{ $json.last_analyzed }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true
+            },
+            {
+              "id": "exchange_name",
+              "displayName": "exchange_name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_spread_percentage",
+              "displayName": "avg_spread_percentage",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "opportunity_frequency",
+              "displayName": "opportunity_frequency",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_liquidity_score",
+              "displayName": "avg_liquidity_score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_success_rate",
+              "displayName": "execution_success_rate",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "best_trading_pairs",
+              "displayName": "best_trading_pairs",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avg_gas_efficiency",
+              "displayName": "avg_gas_efficiency",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reliability_rating",
+              "displayName": "reliability_rating",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Excellent",
+                  "value": "Excellent"
+                },
+                {
+                  "name": "Good",
+                  "value": "Good"
+                },
+                {
+                  "name": "Fair",
+                  "value": "Fair"
+                },
+                {
+                  "name": "Poor",
+                  "value": "Poor"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_analyzed",
+              "displayName": "last_analyzed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        -32
+      ],
+      "id": "58f77a46-98fb-4b3b-9d5f-8c84a747026d",
+      "name": "Store Exchange Performance",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Crv68RgcZ1H8DlUD",
+          "name": "arbitrage_airtable"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Opportunities",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Recent Gas Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exchange Performance Analysis": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Gas Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Exchange Performance Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Store Exchange Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "439f2818-76d9-44dd-972e-174c100eff79",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5719c19beeeb890ce14e53590b646f5fb46ea545afe892f1608cd57063355b59"
+  },
+  "id": "GQ6RiPpw03pxVgvk",
+  "tags": [
+    {
+      "createdAt": "2025-10-22T18:47:12.873Z",
+      "updatedAt": "2025-10-22T18:47:12.873Z",
+      "id": "reWWkOqej4EKN2iP",
+      "name": "Github"
+    }
+  ]
+}
