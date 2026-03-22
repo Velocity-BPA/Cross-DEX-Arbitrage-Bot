@@ -6,6 +6,14 @@ An advanced multi-exchange arbitrage bot built with N8N, featuring machine learn
 
 This bot monitors price discrepancies across multiple decentralized and centralized exchanges to identify and execute profitable arbitrage opportunities in real-time. Built with a modular architecture, it features ML-driven threshold optimization, gas-aware execution, and sophisticated risk management.
 
+## 📚 Documentation
+
+Full project documentation is maintained in Notion:
+
+**[Velocity-BPA — Cross-DEX Arbitrage Bot Suite](https://www.notion.so/Velocity-BPA-Cross-DEX-Arbitrage-Bot-Suite-32b4035692b980f189cefe843421fd69)**
+
+The Notion page covers system architecture, all eight n8n workflow descriptions, the Airtable data schema (9 tables), API integrations, the ML optimization engine, risk management framework, and key operational learnings.
+
 ## ✨ Features
 
 ### Core Capabilities
